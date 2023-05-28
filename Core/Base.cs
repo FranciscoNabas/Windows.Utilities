@@ -22,7 +22,7 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         internal static extern int FormatMessage(
-            Base.FORMAT_MESSAGE_FLAGS dwFlags,
+            uint dwFlags,
             IntPtr lpSource,
             int dwMessageId,
             uint dwLanguageId,
@@ -48,7 +48,7 @@ namespace Windows.Utilities
     public class Base
     {
         #region Enumerations
-        
+
         /// <summary>
         /// Formats a message string. The function requires a message definition as input.
         /// 
@@ -58,6 +58,7 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-formatmessage
         /// </summary>
+        
         public sealed class FORMAT_MESSAGE_FLAGS : Enumeration
         {
             public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_ALLOCATE_BUFFER = new(0x00000100, "FORMAT_MESSAGE_ALLOCATE_BUFFER");
@@ -68,7 +69,7 @@ namespace Windows.Utilities
             public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_ARGUMENT_ARRAY = new(0x00002000, "FORMAT_MESSAGE_ARGUMENT_ARRAY");
             public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_MAX_WIDTH_MASK = new(0x000000FF, "FORMAT_MESSAGE_MAX_WIDTH_MASK");
 
-            public static implicit operator FORMAT_MESSAGE_FLAGS(uint id) => GetAll<FORMAT_MESSAGE_FLAGS>().First(f => f.Id == id);
+            public static implicit operator FORMAT_MESSAGE_FLAGS(uint id) => GetAll<FORMAT_MESSAGE_FLAGS>().Where(s => s.Id == id).FirstOrDefault();
             private FORMAT_MESSAGE_FLAGS(uint id, string name) : base(id, name) { }
         }
         #endregion

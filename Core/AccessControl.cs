@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using System.Diagnostics;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Windows.Utilities
@@ -26,9 +28,9 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         internal static extern bool OpenProcessToken(
-            IntPtr ProcessHandle,
-            AccessControl.TOKEN_ACCESS_RIGHT DesiredAccess,
-            out IntPtr pHandle
+            SystemSafeHandle ProcessHandle,
+            uint DesiredAccess,
+            out SystemSafeHandle pHandle
         );
 
         /// <summary>
@@ -62,7 +64,8 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool AdjustTokenPrivileges(IntPtr TokenHandle,
+        public static extern bool AdjustTokenPrivileges(
+            SystemSafeHandle TokenHandle,
             [MarshalAs(UnmanagedType.Bool)] bool DisableAllPrivileges,
             ref AccessControl.TOKEN_PRIVILEGES NewState,
             uint Zero,
@@ -85,8 +88,8 @@ namespace Windows.Utilities
         public static extern void BuildExplicitAccessWithName(
             ref AccessControl.EXPLICIT_ACCESS_W pExplicitAccess,
             string pTrusteeName,
-            AccessControl.ACCESS_MODE AccessMode,
-            AccessControl.ACE_FLAGS Inheritance
+            uint AccessMode,
+            uint Inheritance
         );
 
         /// <summary>
@@ -141,7 +144,120 @@ namespace Windows.Utilities
         public static extern bool InitializeSecurityDescriptor(out AccessControl.SECURITY_DESCRIPTOR pSecurityDescriptor, uint dwRevision);
     }
 
-    internal class AccessControl
+    /// <summary>
+    /// This class manages access token handles internally.
+    /// </summary>
+    internal sealed class AccessControlManager : IDisposable
+    {
+        private readonly Dictionary<uint, SystemSafeHandle> _process_token_list;
+        private static AccessControlManager? _instance;
+
+        private AccessControlManager() => _process_token_list = new();
+
+        /// <summary>
+        /// Included to satisfy the IDisposable inheritance.
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Disposes of all unmanaged resources.
+        /// </summary>
+        /// <param name="disposing"></param>
+        internal static void Dispose(bool disposing)
+        {
+            if (_instance is not null)
+            {
+                if (disposing)
+                    foreach (KeyValuePair<uint, SystemSafeHandle> safe_handle in _instance._process_token_list)
+                    {
+                        if (!safe_handle.Value.IsInvalid && !safe_handle.Value.IsClosed)
+                            safe_handle.Value.Dispose();
+                    }
+            }
+        }
+
+        ///// <summary>
+        ///// This method opens a safe handle to a process token with the desired access.
+        ///// </summary>
+        ///// <param name="process_id"></param>
+        ///// <param name="desired_access"></param>
+        ///// <returns></returns>
+        //internal static SystemSafeHandle GetProcessTokenSafeHandle(uint process_id, AccessControl.TOKEN_ACCESS_RIGHT desired_access)
+        //{
+        //    _instance ??= new();
+        //    if (!_instance._process_token_list.TryGetValue(process_id, out SystemSafeHandle token_handle))
+        //    {
+        //        token_handle = _instance.OpenHandleWithCheck(process_id, desired_access);
+
+        //        _instance._process_token_list.Add(process_id, token_handle);
+        //    }
+        //    else
+        //    {
+        //        if (token_handle.IsClosed || token_handle.IsInvalid)
+        //            token_handle = _instance.OpenHandleWithCheck(process_id, desired_access);
+        //    }
+
+        //    return token_handle;
+        //}
+
+        /// <summary>
+        /// This method opens a safe handle to the current process token with the desired access.
+        /// </summary>
+        /// <param name="process_id"></param>
+        /// <param name="desired_access"></param>
+        /// <returns></returns>
+        internal static SystemSafeHandle GetProcessTokenSafeHandle(AccessControl.TOKEN_ACCESS_RIGHT desired_access)
+        {
+            _instance ??= new();
+            using Process current_process =  Process.GetCurrentProcess();
+            if (!_instance._process_token_list.TryGetValue((uint)current_process.Id, out SystemSafeHandle token_handle))
+            {
+                token_handle = _instance.OpenHandleWithCheck(desired_access);
+
+                _instance._process_token_list.Add((uint)current_process.Id, token_handle);
+            }
+            else
+            {
+                if (token_handle.IsClosed || token_handle.IsInvalid)
+                    token_handle = _instance.OpenHandleWithCheck(desired_access);
+            }
+
+            return token_handle;
+        }
+
+        /// <summary>
+        /// Used internally to open a safe token handle to the current process, with error handling.
+        /// </summary>
+        /// <param name="process_id"></param>
+        /// <param name="desired_access"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        /// <exception cref="SystemException"></exception>
+        private SystemSafeHandle OpenHandleWithCheck(AccessControl.TOKEN_ACCESS_RIGHT desired_access)
+        {
+            if (_instance is null)
+                throw new ArgumentNullException();
+
+            SystemSafeHandle current_process_handle = NativeFunctions.GetCurrentProcess();
+            if (!NativeFunctions.OpenProcessToken(current_process_handle, desired_access, out SystemSafeHandle token_handle))
+                throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+
+            if (token_handle.IsInvalid)
+                throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+
+            return token_handle;
+        }
+    }
+
+    /// <summary>
+    /// This class is the main API for access control utilities.
+    /// </summary>
+    public class AccessControl : IDisposable
     {
         #region Enumerations
 
@@ -171,7 +287,7 @@ namespace Windows.Utilities
             public static SECURITY_DESCRIPTOR_CONTROL SE_RM_CONTROL_VALID = new(0x4000, "SE_RM_CONTROL_VALID");
             public static SECURITY_DESCRIPTOR_CONTROL SE_SELF_RELATIVE = new(0x8000, "SE_SELF_RELATIVE");
 
-            public static implicit operator SECURITY_DESCRIPTOR_CONTROL(uint id) => GetAll<SECURITY_DESCRIPTOR_CONTROL>().First(f => f.Id == id);
+            public static implicit operator SECURITY_DESCRIPTOR_CONTROL(uint id) => GetAll<SECURITY_DESCRIPTOR_CONTROL>().Where(s => s.Id == id).FirstOrDefault();
             SECURITY_DESCRIPTOR_CONTROL(uint id, string name) : base(id, name) { }
         }
 
@@ -201,7 +317,7 @@ namespace Windows.Utilities
             public static SECURITY_INFORMATION UNPROTECTED_DACL_SECURITY_INFORMATION = new(0x20000000, "UNPROTECTED_DACL_SECURITY_INFORMATION");
             public static SECURITY_INFORMATION UNPROTECTED_SACL_SECURITY_INFORMATION = new(0x10000000, "UNPROTECTED_SACL_SECURITY_INFORMATION");
 
-            public static implicit operator SECURITY_INFORMATION(uint id) => GetAll<SECURITY_INFORMATION>().First(f => f.Id == id);
+            public static implicit operator SECURITY_INFORMATION(uint id) => GetAll<SECURITY_INFORMATION>().Where(s => s.Id == id).FirstOrDefault();
             private SECURITY_INFORMATION(uint id, string name) : base (id, name) { }
         }
 
@@ -225,7 +341,7 @@ namespace Windows.Utilities
             public static ACCESS_MODE SET_AUDIT_SUCCESS = new(5, "SET_AUDIT_SUCCESS");
             public static ACCESS_MODE SET_AUDIT_FAILURE = new(6, "SET_AUDIT_FAILURE");
 
-            public static implicit operator ACCESS_MODE(uint id) => GetAll<ACCESS_MODE>().First(f => f.Id == id);
+            public static implicit operator ACCESS_MODE(uint id) => GetAll<ACCESS_MODE>().Where(s => s.Id == id).FirstOrDefault();
             private ACCESS_MODE(uint id, string name) : base (id, name) { }
         }
 
@@ -251,7 +367,7 @@ namespace Windows.Utilities
             public static ACE_FLAGS TRUST_PROTECTED_FILTER_ACE_FLAG = new(0x40, "TRUST_PROTECTED_FILTER_ACE_FLAG");
             public static ACE_FLAGS FAILED_ACCESS_ACE_FLAG = new(0x80, "FAILED_ACCESS_ACE_FLAG");
 
-            public static implicit operator ACE_FLAGS(uint id) => GetAll<ACE_FLAGS>().First(f => f.Id == id);
+            public static implicit operator ACE_FLAGS(uint id) => GetAll<ACE_FLAGS>().Where(s => s.Id == id).FirstOrDefault();
             private ACE_FLAGS(uint id, string name) : base (id, name) { }
         }
 
@@ -269,7 +385,7 @@ namespace Windows.Utilities
             public static MULTIPLE_TRUSTEE_OPERATION NO_MULTIPLE_TRUSTEE = new(0, "NO_MULTIPLE_TRUSTEE");
             public static MULTIPLE_TRUSTEE_OPERATION TRUSTEE_IS_IMPERSONATE = new(1, "TRUSTEE_IS_IMPERSONATE");
 
-            public static implicit operator MULTIPLE_TRUSTEE_OPERATION(uint id) => GetAll<MULTIPLE_TRUSTEE_OPERATION>().First(f => f.Id == id);
+            public static implicit operator MULTIPLE_TRUSTEE_OPERATION(uint id) => GetAll<MULTIPLE_TRUSTEE_OPERATION>().Where(s => s.Id == id).FirstOrDefault();
             private MULTIPLE_TRUSTEE_OPERATION(uint id, string name) : base (id, name) { }
         }
 
@@ -290,7 +406,7 @@ namespace Windows.Utilities
             public static TRUSTEE_FORM TRUSTEE_IS_OBJECTS_AND_SID = new(3, "TRUSTEE_IS_OBJECTS_AND_SID");
             public static TRUSTEE_FORM TRUSTEE_IS_OBJECTS_AND_NAME = new(4, "TRUSTEE_IS_OBJECTS_AND_NAME");
 
-            public static implicit operator TRUSTEE_FORM(uint id) => GetAll<TRUSTEE_FORM>().First(f => f.Id == id);
+            public static implicit operator TRUSTEE_FORM(uint id) => GetAll<TRUSTEE_FORM>().Where(s => s.Id == id).FirstOrDefault();
             private TRUSTEE_FORM(uint id, string name) : base(id, name) { }
         }
 
@@ -315,7 +431,7 @@ namespace Windows.Utilities
             public static TRUSTEE_TYPE TRUSTEE_IS_INVALID = new(7, "TRUSTEE_IS_INVALID");
             public static TRUSTEE_TYPE TRUSTEE_IS_COMPUTER = new(8, "TRUSTEE_IS_COMPUTER");
 
-            public static implicit operator TRUSTEE_TYPE(uint id) => GetAll<TRUSTEE_TYPE>().First(f => f.Id == id);
+            public static implicit operator TRUSTEE_TYPE(uint id) => GetAll<TRUSTEE_TYPE>().Where(s => s.Id == id).FirstOrDefault();
             private TRUSTEE_TYPE(uint id, string name) : base(id, name) { }
         }
 
@@ -333,7 +449,7 @@ namespace Windows.Utilities
             public static OBJECTS_PRESENT ACE_OBJECT_TYPE_PRESENT = new(0x1, "ACE_OBJECT_TYPE_PRESENT");
             public static OBJECTS_PRESENT ACE_INHERITED_OBJECT_TYPE_PRESENT = new(0x2, "ACE_INHERITED_OBJECT_TYPE_PRESENT");
 
-            public static implicit operator OBJECTS_PRESENT(uint id) => GetAll<OBJECTS_PRESENT>().First(f => f.Id == id);
+            public static implicit operator OBJECTS_PRESENT(uint id) => GetAll<OBJECTS_PRESENT>().Where(s => s.Id == id).FirstOrDefault();
             private OBJECTS_PRESENT(uint id, string name) : base (id, name) { }
         }
 
@@ -365,7 +481,7 @@ namespace Windows.Utilities
             public static SE_OBJECT_TYPE SE_REGISTRY_WOW64_32KEY = new(12, "SE_REGISTRY_WOW64_32KEY");
             public static SE_OBJECT_TYPE SE_REGISTRY_WOW64_64KEY = new(13, "SE_REGISTRY_WOW64_64KEY");
 
-            public static implicit operator SE_OBJECT_TYPE(uint id) => GetAll<SE_OBJECT_TYPE>().First(f => f.Id == id);
+            public static implicit operator SE_OBJECT_TYPE(uint id) => GetAll<SE_OBJECT_TYPE>().Where(s => s.Id == id).FirstOrDefault();
             private SE_OBJECT_TYPE(uint id, string name) : base (id, name) { }
         }
 
@@ -379,7 +495,7 @@ namespace Windows.Utilities
         /// 
         /// Documentation:
         /// </summary>
-        public sealed class ACCESS_TYPE : Enumeration
+        public class ACCESS_TYPE : Enumeration
         {
             // The following are masks for the predefined standard access types.
             public static ACCESS_TYPE DELETE = new(0x00010000, "DELETE");
@@ -406,8 +522,8 @@ namespace Windows.Utilities
             public static ACCESS_TYPE GENERIC_EXECUTE = new(0x20000000, "GENERIC_EXECUTE");
             public static ACCESS_TYPE GENERIC_ALL = new(0x10000000, "GENERIC_ALL");
 
-            public static implicit operator ACCESS_TYPE(uint id) => GetAll<ACCESS_TYPE>().First(f => f.Id == id);
-            private ACCESS_TYPE(uint id, string name) : base(id, name) { }
+            public static implicit operator ACCESS_TYPE(uint id) => GetAll<ACCESS_TYPE>().Where(s => s.Id == id).FirstOrDefault();
+            protected ACCESS_TYPE(uint id, string name) : base(id, name) { }
         }
 
         /// <summary>
@@ -419,7 +535,7 @@ namespace Windows.Utilities
         /// 
         /// Documentation:
         /// </summary>
-        public sealed class TOKEN_ACCESS_RIGHT : Enumeration
+        public sealed class TOKEN_ACCESS_RIGHT : ACCESS_TYPE
         {
             public static TOKEN_ACCESS_RIGHT TOKEN_ASSIGN_PRIMARY = new(0x0001, "TOKEN_ASSIGN_PRIMARY");
             public static TOKEN_ACCESS_RIGHT TOKEN_DUPLICATE = new(0x0002, "TOKEN_DUPLICATE");
@@ -430,7 +546,7 @@ namespace Windows.Utilities
             public static TOKEN_ACCESS_RIGHT TOKEN_ADJUST_GROUPS = new(0x0040, "TOKEN_ADJUST_GROUPS");
             public static TOKEN_ACCESS_RIGHT TOKEN_ADJUST_DEFAULT = new(0x0080, "TOKEN_ADJUST_DEFAULT");
             public static TOKEN_ACCESS_RIGHT TOKEN_ADJUST_SESSIONID = new(0x0100, "TOKEN_ADJUST_SESSIONID");
-            public static TOKEN_ACCESS_RIGHT TOKEN_ALL_ACCESS_P = new(ACCESS_TYPE.STANDARD_RIGHTS_REQUIRED |
+            public static TOKEN_ACCESS_RIGHT TOKEN_ALL_ACCESS_P = new(STANDARD_RIGHTS_REQUIRED |
                                                                       TOKEN_ASSIGN_PRIMARY |
                                                                       TOKEN_DUPLICATE |
                                                                       TOKEN_IMPERSONATE |
@@ -447,15 +563,15 @@ namespace Windows.Utilities
             // #define TOKEN_ALL_ACCESS TOKEN_ALL_ACCESS_P
             // #endif
 
-            public static TOKEN_ACCESS_RIGHT TOKEN_READ = new(ACCESS_TYPE.STANDARD_RIGHTS_READ | TOKEN_QUERY, "TOKEN_READ");
-            public static TOKEN_ACCESS_RIGHT TOKEN_WRITE = new(ACCESS_TYPE.STANDARD_RIGHTS_WRITE |
+            public static TOKEN_ACCESS_RIGHT TOKEN_READ = new(STANDARD_RIGHTS_READ | TOKEN_QUERY, "TOKEN_READ");
+            public static TOKEN_ACCESS_RIGHT TOKEN_WRITE = new(STANDARD_RIGHTS_WRITE |
                                                                TOKEN_ADJUST_PRIVILEGES |
                                                                TOKEN_ADJUST_GROUPS |
                                                                TOKEN_ADJUST_DEFAULT,
                                                                "TOKEN_WRITE");
 
-            public static TOKEN_ACCESS_RIGHT TOKEN_EXECUTE = new(ACCESS_TYPE.STANDARD_RIGHTS_EXECUTE, "TOKEN_EXECUTE");
-            public static TOKEN_ACCESS_RIGHT TOKEN_TRUST_CONSTRAINT_MASK = new(ACCESS_TYPE.STANDARD_RIGHTS_READ |
+            public static TOKEN_ACCESS_RIGHT TOKEN_EXECUTE = new(STANDARD_RIGHTS_EXECUTE, "TOKEN_EXECUTE");
+            public static TOKEN_ACCESS_RIGHT TOKEN_TRUST_CONSTRAINT_MASK = new(STANDARD_RIGHTS_READ |
                                                                                TOKEN_QUERY |
                                                                                TOKEN_QUERY_SOURCE,
                                                                                "TOKEN_TRUST_CONSTRAINT_MASK");
@@ -466,11 +582,11 @@ namespace Windows.Utilities
                                                                             "TOKEN_TRUST_ALLOWED_MASK");
 
             // #if (NTDDI_VERSION >= NTDDI_WIN8)
-            public static TOKEN_ACCESS_RIGHT TOKEN_ACCESS_PSEUDO_HANDLE_WIN8 = new(TOKEN_ACCESS_RIGHT.TOKEN_QUERY.Id | TOKEN_ACCESS_RIGHT.TOKEN_QUERY_SOURCE.Id, "TOKEN_ACCESS_PSEUDO_HANDLE_WIN8");
+            public static TOKEN_ACCESS_RIGHT TOKEN_ACCESS_PSEUDO_HANDLE_WIN8 = new(TOKEN_QUERY.Id | TOKEN_QUERY_SOURCE.Id, "TOKEN_ACCESS_PSEUDO_HANDLE_WIN8");
             public static TOKEN_ACCESS_RIGHT TOKEN_ACCESS_PSEUDO_HANDLE = new(TOKEN_ACCESS_PSEUDO_HANDLE_WIN8.Id, "TOKEN_ACCESS_PSEUDO_HANDLE");
             // #endif
 
-            public static implicit operator TOKEN_ACCESS_RIGHT(uint id) => GetAll<TOKEN_ACCESS_RIGHT>().First(f => f.Id == id);
+            public static implicit operator TOKEN_ACCESS_RIGHT(uint id) => GetAll<TOKEN_ACCESS_RIGHT>().Where(s => s.Id == id).FirstOrDefault();
             private TOKEN_ACCESS_RIGHT(uint id, string name) : base (id, name) { }
         }
 
@@ -495,7 +611,7 @@ namespace Windows.Utilities
                                                                                   SE_PRIVILEGE_USED_FOR_ACCESS,
                                                                                   "SE_PRIVILEGE_VALID_ATTRIBUTES");
 
-            public static implicit operator PRIVILEGE_ATTRIBUTE(uint id) => GetAll<PRIVILEGE_ATTRIBUTE>().First(f => f.Id == id);
+            public static implicit operator PRIVILEGE_ATTRIBUTE(uint id) => GetAll<PRIVILEGE_ATTRIBUTE>().Where(s => s.Id == id).FirstOrDefault();
             private PRIVILEGE_ATTRIBUTE(uint id, string name) : base(id, name) { }
         }
         #endregion
@@ -512,10 +628,10 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-sid_identifier_authority
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct SID_IDENTIFIER_AUTHORITY
+        internal struct SID_IDENTIFIER_AUTHORITY
         {
-            public byte[] Value;
-            public SID_IDENTIFIER_AUTHORITY(byte[] value)
+            internal byte[] Value;
+            internal SID_IDENTIFIER_AUTHORITY(byte[] value)
             {
                 Value = value;
             }
@@ -531,11 +647,11 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-sid
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct SID
+        internal struct SID
         {
-            public byte Revision;
-            public byte SubAuthorityCount;
-            public uint[] SubAuthority;
+            internal byte Revision;
+            internal byte SubAuthorityCount;
+            internal uint[] SubAuthority;
         }
 
         /// <summary>
@@ -549,13 +665,13 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-acl
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct ACL
+        internal struct ACL
         {
-            public byte AclRevision;
-            public byte Sbz1;
-            public ushort AclSize;
-            public ushort AceCount;
-            public ushort Sbz2;
+            internal byte AclRevision;
+            internal byte Sbz1;
+            internal ushort AclSize;
+            internal ushort AceCount;
+            internal ushort Sbz2;
         }
 
         /// <summary>
@@ -570,15 +686,15 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-security_descriptor
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct SECURITY_DESCRIPTOR
+        internal struct SECURITY_DESCRIPTOR
         {
-            public byte Revision;
-            public byte Sbz1;
-            public SECURITY_DESCRIPTOR_CONTROL Control;
-            public IntPtr Owner;
-            public IntPtr Group;
-            public IntPtr Sacl;
-            public IntPtr Dacl;
+            internal byte Revision;
+            internal byte Sbz1;
+            internal SECURITY_DESCRIPTOR_CONTROL Control;
+            internal IntPtr Owner;
+            internal IntPtr Group;
+            internal IntPtr Sacl;
+            internal IntPtr Dacl;
         }
 
         /// <summary>
@@ -592,12 +708,12 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ns-accctrl-objects_and_sid
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct OBJECTS_AND_SID
+        internal struct OBJECTS_AND_SID
         {
-            public OBJECTS_PRESENT ObjectsPresent;
-            public Guid ObjectTypeGuid;
-            public Guid InheritedObjectTypeGuid;
-            public SID pSid;
+            internal OBJECTS_PRESENT ObjectsPresent;
+            internal Guid ObjectTypeGuid;
+            internal Guid InheritedObjectTypeGuid;
+            internal SID pSid;
         }
 
         /// <summary>
@@ -611,13 +727,13 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ns-accctrl-objects_and_name_w
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct OBJECTS_AND_NAME_W
+        internal struct OBJECTS_AND_NAME_W
         {
-            public OBJECTS_PRESENT ObjectsPresent;
-            public SE_OBJECT_TYPE ObjectType;
-            public string ObjectTypeName;
-            public string InheritedObjectTypeName;
-            public string ptstrName;
+            internal OBJECTS_PRESENT ObjectsPresent;
+            internal SE_OBJECT_TYPE ObjectType;
+            internal string ObjectTypeName;
+            internal string InheritedObjectTypeName;
+            internal string ptstrName;
         }
 
         /// <summary>
@@ -635,21 +751,21 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ns-accctrl-trustee_w
         /// </summary>
         [StructLayout(LayoutKind.Explicit)]
-        public struct TRUSTEE_W
+        internal struct TRUSTEE_W
         {
             // This member is not currently supported and must be NULL.
-            [FieldOffset(0)] public IntPtr pMultipleTrustee;
-            [FieldOffset(1)] public MULTIPLE_TRUSTEE_OPERATION MultipleTrusteeOperation;
-            [FieldOffset(2)] public TRUSTEE_FORM TrusteeForm;
-            [FieldOffset(3)] public TRUSTEE_TYPE TrusteeType;
+            [FieldOffset(0)] internal IntPtr pMultipleTrustee;
+            [FieldOffset(1)] internal MULTIPLE_TRUSTEE_OPERATION MultipleTrusteeOperation;
+            [FieldOffset(2)] internal TRUSTEE_FORM TrusteeForm;
+            [FieldOffset(3)] internal TRUSTEE_TYPE TrusteeType;
 
             // Union.
-            [FieldOffset(4)] public string u_ptstrName;
-            [FieldOffset(4)] public SID pSid;
-            [FieldOffset(4)] public OBJECTS_AND_SID pObjectsAndSid;
-            [FieldOffset(4)] public OBJECTS_AND_NAME_W pObjectsAndName;
+            [FieldOffset(4)] internal string u_ptstrName;
+            [FieldOffset(4)] internal SID pSid;
+            [FieldOffset(4)] internal OBJECTS_AND_SID pObjectsAndSid;
+            [FieldOffset(4)] internal OBJECTS_AND_NAME_W pObjectsAndName;
 
-            [FieldOffset(5)] public string ptstrName;
+            [FieldOffset(5)] internal string ptstrName;
         }
 
         /// <summary>
@@ -664,12 +780,12 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ns-accctrl-explicit_access_w
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct EXPLICIT_ACCESS_W
+        internal struct EXPLICIT_ACCESS_W
         {
-            public uint grfAccessPermissions;
-            public ACCESS_MODE grfAccessMode;
-            public uint grfInheritance;
-            public TRUSTEE_W Trustee;
+            internal uint grfAccessPermissions;
+            internal ACCESS_MODE grfAccessMode;
+            internal uint grfInheritance;
+            internal TRUSTEE_W Trustee;
         }
 
         /// <summary>
@@ -682,10 +798,10 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-luid
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct LUID
+        internal struct LUID
         {
-            public uint LowPart;
-            public long HighPart;
+            internal uint LowPart;
+            internal long HighPart;
         }
 
         /// <summary>
@@ -698,10 +814,10 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-luid_and_attributes
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct LUID_AND_ATTRIBUTES
+        internal struct LUID_AND_ATTRIBUTES
         {
-            public LUID Luid;
-            public PRIVILEGE_ATTRIBUTE Attributes;
+            internal LUID Luid;
+            internal PRIVILEGE_ATTRIBUTE Attributes;
         }
 
         /// <summary>
@@ -714,13 +830,39 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-token_privileges
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]
-        public struct TOKEN_PRIVILEGES
+        internal struct TOKEN_PRIVILEGES
         {
-            public uint PrivilegeCount;
+            internal uint PrivilegeCount;
 
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-            public LUID_AND_ATTRIBUTES[] Privileges;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 1)]
+            internal LUID_AND_ATTRIBUTES[] Privileges;
         }
         #endregion
+    
+        public AccessControl() { }
+
+        public void Dispose() => AccessControlManager.Dispose(disposing: true);
+
+        /// <summary>
+        /// This method adjusts the current process token privileges.
+        /// </summary>
+        /// <param name="privilege_list"></param>
+        public static void AdjustTokenPrivileges(string[] privilege_list)
+        {
+            TOKEN_PRIVILEGES token_privileges = new() { Privileges = new LUID_AND_ATTRIBUTES[1] };
+            SystemSafeHandle h_token = AccessControlManager.GetProcessTokenSafeHandle(TOKEN_ACCESS_RIGHT.TOKEN_ADJUST_PRIVILEGES);
+            
+            foreach (string privilege in privilege_list)
+            {
+                if (!NativeFunctions.LookupPrivilegeValue(string.Empty, NativeFunctions.SE_DEBUG_NAME, ref token_privileges.Privileges[0].Luid))
+                    throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+
+                token_privileges.Privileges[0].Attributes = PRIVILEGE_ATTRIBUTE.SE_PRIVILEGE_ENABLED | PRIVILEGE_ATTRIBUTE.SE_PRIVILEGE_USED_FOR_ACCESS;
+                token_privileges.PrivilegeCount = 1;
+
+                if (!NativeFunctions.AdjustTokenPrivileges(h_token, false, ref token_privileges, 0, IntPtr.Zero, IntPtr.Zero))
+                    throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+            }
+        }
     }
 }

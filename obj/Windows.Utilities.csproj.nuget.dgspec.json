@@ -1,27 +1,33 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\francisco.nabas\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj": {}
+    "C:\\Users\\Frank\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj": {}
   },
   "projects": {
-    "C:\\Users\\francisco.nabas\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj": {
+    "C:\\Users\\Frank\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\francisco.nabas\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj",
+        "projectUniqueName": "C:\\Users\\Frank\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj",
         "projectName": "Windows.Utilities",
-        "projectPath": "C:\\Users\\francisco.nabas\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj",
-        "packagesPath": "C:\\Users\\francisco.nabas\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\francisco.nabas\\OneDrive\\Repositories\\Windows.Utilities\\obj\\",
+        "projectPath": "C:\\Users\\Frank\\OneDrive\\Repositories\\Windows.Utilities\\Windows.Utilities.csproj",
+        "packagesPath": "C:\\Users\\Frank\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Frank\\OneDrive\\Repositories\\Windows.Utilities\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "C:\\Users\\francisco.nabas\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "C:\\Users\\Frank\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\nuget.config"
         ],
         "originalTargetFrameworks": [
           "netstandard2.1"
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Repositories\\NuGet": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -55,7 +61,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.302\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.203\\RuntimeIdentifierGraph.json"
         }
       }
     }
