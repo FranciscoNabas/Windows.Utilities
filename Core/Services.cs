@@ -24,7 +24,7 @@ namespace Windows.Utilities
         public static extern SystemSafeHandle OpenSCManager(
             string lpMachineName,
             string lpDatabaseName,
-            uint dwDesiredAccess
+            Services.SC_MANAGER_SECURITY dwDesiredAccess
         );
 
         /// <summary>
@@ -41,7 +41,7 @@ namespace Windows.Utilities
         public static extern SystemSafeHandle OpenService(
             SystemSafeHandle hSCManager,
             string lpServiceName,
-            uint dwDesiredAccess
+            Services.SERVICE_SECURITY dwDesiredAccess
         );
 
         /// <summary>
@@ -283,18 +283,15 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/services/service-security-and-access-rights
         /// </summary>
-        public sealed class SC_MANAGER_SECURITY : Enumeration
+        public enum SC_MANAGER_SECURITY : uint
         {
-            public static SC_MANAGER_SECURITY SC_MANAGER_CONNECT = new(0x0001, "SC_MANAGER_CONNECT");
-            public static SC_MANAGER_SECURITY SC_MANAGER_CREATE_SERVICE = new(0x0002, "SC_MANAGER_CREATE_SERVICE");
-            public static SC_MANAGER_SECURITY SC_MANAGER_ENUMERATE_SERVICE = new(0x0004, "SC_MANAGER_ENUMERATE_SERVICE");
-            public static SC_MANAGER_SECURITY SC_MANAGER_LOCK = new(0x0008, "SC_MANAGER_LOCK");
-            public static SC_MANAGER_SECURITY SC_MANAGER_QUERY_LOCK_STATUS = new(0x0010, "SC_MANAGER_QUERY_LOCK_STATUS");
-            public static SC_MANAGER_SECURITY SC_MANAGER_MODIFY_BOOT_CONFIG = new(0x0020, "SC_MANAGER_MODIFY_BOOT_CONFIG");
-            public static SC_MANAGER_SECURITY SC_MANAGER_ALL_ACCESS = new(0xF003F, "SC_MANAGER_ALL_ACCESS");
-
-            public static implicit operator SC_MANAGER_SECURITY(uint id) => GetAll<SC_MANAGER_SECURITY>().Where(s => s.Id == id).FirstOrDefault();
-            private SC_MANAGER_SECURITY(uint id, string name) : base(id, name) { }
+            SC_MANAGER_CONNECT = 0x0001,
+            SC_MANAGER_CREATE_SERVICE = 0x0002,
+            SC_MANAGER_ENUMERATE_SERVICE = 0x0004,
+            SC_MANAGER_LOCK = 0x0008,
+            SC_MANAGER_QUERY_LOCK_STATUS = 0x0010,
+            SC_MANAGER_MODIFY_BOOT_CONFIG = 0x0020,
+            SC_MANAGER_ALL_ACCESS = 0xF003F
         }
 
         /// <summary>
@@ -306,36 +303,30 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/services/service-security-and-access-rights
         /// </summary>
-        public sealed class SERVICE_SECURITY : Enumeration
+        public enum SERVICE_SECURITY : uint
         {
-            public static SERVICE_SECURITY SERVICE_QUERY_CONFIG = new(0x0001, "SERVICE_QUERY_CONFIG");
-            public static SERVICE_SECURITY SERVICE_CHANGE_CONFIG = new(0x0002, "SERVICE_CHANGE_CONFIG");
-            public static SERVICE_SECURITY SERVICE_QUERY_STATUS = new(0x0004, "SERVICE_QUERY_STATUS");
-            public static SERVICE_SECURITY SERVICE_ENUMERATE_DEPENDENTS = new(0x0008, "SERVICE_ENUMERATE_DEPENDENTS");
-            public static SERVICE_SECURITY SERVICE_START = new(0x0010, "SERVICE_START");
-            public static SERVICE_SECURITY SERVICE_STOP = new(0x0020, "SERVICE_STOP");
-            public static SERVICE_SECURITY SERVICE_PAUSE_CONTINUE = new(0x0040, "SERVICE_PAUSE_CONTINUE");
-            public static SERVICE_SECURITY SERVICE_INTERROGATE = new(0x0080, "SERVICE_INTERROGATE");
-            public static SERVICE_SECURITY SERVICE_USER_DEFINED_CONTROL = new(0x0100, "SERVICE_USER_DEFINED_CONTROL");
-            public static SERVICE_SECURITY SERVICE_ALL_ACCESS = new(0xF01FF, "SERVICE_ALL_ACCESS");
-
-            public static implicit operator SERVICE_SECURITY(uint id) => GetAll<SERVICE_SECURITY>().Where(s => s.Id == id).FirstOrDefault();
-            private SERVICE_SECURITY(uint id, string name) : base(id, name) { }
+            SERVICE_QUERY_CONFIG = 0x0001,
+            SERVICE_CHANGE_CONFIG = 0x0002,
+            SERVICE_QUERY_STATUS = 0x0004,
+            SERVICE_ENUMERATE_DEPENDENTS = 0x0008,
+            SERVICE_START = 0x0010,
+            SERVICE_STOP = 0x0020,
+            SERVICE_PAUSE_CONTINUE = 0x0040,
+            SERVICE_INTERROGATE = 0x0080,
+            SERVICE_USER_DEFINED_CONTROL = 0x0100,
+            SERVICE_ALL_ACCESS = 0xF01FF
         }
 
         /// <summary>
         /// 'System.ServiceProcess.ServiceStartMode' does not contains a definition for 'AutomaticDelayedStart'.
         /// Mimicing 'Microsoft.PowerShell.Commands.ServiceStartupType', we add 'AutomaticDelayedStart', and the methods to get it.
         /// </summary>
-        public sealed class ServiceStartupType : Enumeration
+        public enum ServiceStartupType : uint
         {
-            public static ServiceStartupType Automatic = new(0, "Automatic");
-            public static ServiceStartupType Manual = new(0, "Manual");
-            public static ServiceStartupType Disabled = new(0, "Disabled");
-            public static ServiceStartupType AutomaticDelayedStart = new(0, "AutomaticDelayedStart");
-
-            public static implicit operator ServiceStartupType(uint id) => GetAll<ServiceStartupType>().Where(s => s.Id == id).FirstOrDefault();
-            private ServiceStartupType(uint id, string name) : base(id, name) { }
+            Automatic,
+            Manual,
+            Disabled,
+            AutomaticDelayedStart
         }
         #endregion
 
@@ -429,19 +420,19 @@ namespace Windows.Utilities
 
             SystemSafeHandle h_service = ServiceControlManager.GetServiceSafeHandle(service_name);
 
-            switch (startup_type.Name)
+            switch (startup_type)
             {
-                case "Automatic":
+                case ServiceStartupType.Automatic:
                     op_code = 0x00000002;
                     break;
-                case "AutomaticDelayedStart":
+                case ServiceStartupType.AutomaticDelayedStart:
                     op_code = 0x00000002;
                     set_auto_delayed = true;
                     break;
-                case "Manual":
+                case ServiceStartupType.Manual:
                     op_code = 0x00000003;
                     break;
-                case "Disabled":
+                case ServiceStartupType.Disabled:
                     op_code = 0x00000004;
                     break;
                 default:

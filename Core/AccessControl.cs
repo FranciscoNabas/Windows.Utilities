@@ -29,7 +29,7 @@ namespace Windows.Utilities
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         internal static extern bool OpenProcessToken(
             SystemSafeHandle ProcessHandle,
-            uint DesiredAccess,
+            AccessControl.TOKEN_ACCESS_RIGHT DesiredAccess,
             out SystemSafeHandle pHandle
         );
 
@@ -259,8 +259,6 @@ namespace Windows.Utilities
     /// </summary>
     public class AccessControl : IDisposable
     {
-        #region Enumerations
-
         /// <summary>
         /// The SECURITY_DESCRIPTOR_CONTROL data type is a set of bit flags that qualify the meaning of a security descriptor or its components.
         /// Each security descriptor has a Control member that stores the SECURITY_DESCRIPTOR_CONTROL bits.
@@ -271,24 +269,21 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/secauthz/security-descriptor-control
         /// </summary>
-        public sealed class SECURITY_DESCRIPTOR_CONTROL : Enumeration
+        public enum SECURITY_DESCRIPTOR_CONTROL : uint
         {
-            public static SECURITY_DESCRIPTOR_CONTROL SE_OWNER_DEFAULTED = new(0x0001, "SE_OWNER_DEFAULTED");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_GROUP_DEFAULTED = new(0x0002, "SE_GROUP_DEFAULTED");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_DACL_PRESENT = new(0x0004, "SE_DACL_PRESENT");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_DACL_DEFAULTED = new(0x0008, "SE_DACL_DEFAULTED");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_SACL_PRESENT = new(0x0010, "SE_SACL_PRESENT");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_DACL_AUTO_INHERIT_REQ = new(0x0100, "SE_DACL_AUTO_INHERIT_REQ");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_SACL_AUTO_INHERIT_REQ = new(0x0200, "SE_SACL_AUTO_INHERIT_REQ");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_DACL_AUTO_INHERITED = new(0x0400, "SE_DACL_AUTO_INHERITED");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_SACL_AUTO_INHERITED = new(0x0800, "SE_SACL_AUTO_INHERITED");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_DACL_PROTECTED = new(0x1000, "SE_DACL_PROTECTED");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_SACL_PROTECTED = new(0x2000, "SE_SACL_PROTECTED");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_RM_CONTROL_VALID = new(0x4000, "SE_RM_CONTROL_VALID");
-            public static SECURITY_DESCRIPTOR_CONTROL SE_SELF_RELATIVE = new(0x8000, "SE_SELF_RELATIVE");
-
-            public static implicit operator SECURITY_DESCRIPTOR_CONTROL(uint id) => GetAll<SECURITY_DESCRIPTOR_CONTROL>().Where(s => s.Id == id).FirstOrDefault();
-            SECURITY_DESCRIPTOR_CONTROL(uint id, string name) : base(id, name) { }
+            SE_OWNER_DEFAULTED = 0x0001,
+            SE_GROUP_DEFAULTED = 0x0002,
+            SE_DACL_PRESENT = 0x0004,
+            SE_DACL_DEFAULTED = 0x0008,
+            SE_SACL_PRESENT = 0x0010,
+            SE_DACL_AUTO_INHERIT_REQ = 0x0100,
+            SE_SACL_AUTO_INHERIT_REQ = 0x0200,
+            SE_DACL_AUTO_INHERITED = 0x0400,
+            SE_SACL_AUTO_INHERITED = 0x0800,
+            SE_DACL_PROTECTED = 0x1000,
+            SE_SACL_PROTECTED = 0x2000,
+            SE_RM_CONTROL_VALID = 0x4000,
+            SE_SELF_RELATIVE = 0x8000
         }
 
         /// <summary>
@@ -300,25 +295,22 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/secauthz/security-information
         /// </summary>
-        public sealed class SECURITY_INFORMATION : Enumeration
+        public enum SECURITY_INFORMATION : uint
         {
-            public static SECURITY_INFORMATION OWNER_SECURITY_INFORMATION = new(0x00000001, "OWNER_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION GROUP_SECURITY_INFORMATION = new(0x00000002, "GROUP_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION DACL_SECURITY_INFORMATION = new(0x00000004, "DACL_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION SACL_SECURITY_INFORMATION = new(0x00000008, "SACL_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION LABEL_SECURITY_INFORMATION = new(0x00000010, "LABEL_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION ATTRIBUTE_SECURITY_INFORMATION = new(0x00000020, "ATTRIBUTE_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION SCOPE_SECURITY_INFORMATION = new(0x00000040, "SCOPE_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION PROCESS_TRUST_LABEL_SECURITY_INFORMATION = new(0x00000080, "PROCESS_TRUST_LABEL_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION ACCESS_FILTER_SECURITY_INFORMATION = new(0x00000100, "ACCESS_FILTER_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION BACKUP_SECURITY_INFORMATION = new(0x00010000, "BACKUP_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION PROTECTED_DACL_SECURITY_INFORMATION = new(0x80000000, "PROTECTED_DACL_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION PROTECTED_SACL_SECURITY_INFORMATION = new(0x40000000, "PROTECTED_SACL_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION UNPROTECTED_DACL_SECURITY_INFORMATION = new(0x20000000, "UNPROTECTED_DACL_SECURITY_INFORMATION");
-            public static SECURITY_INFORMATION UNPROTECTED_SACL_SECURITY_INFORMATION = new(0x10000000, "UNPROTECTED_SACL_SECURITY_INFORMATION");
-
-            public static implicit operator SECURITY_INFORMATION(uint id) => GetAll<SECURITY_INFORMATION>().Where(s => s.Id == id).FirstOrDefault();
-            private SECURITY_INFORMATION(uint id, string name) : base (id, name) { }
+            OWNER_SECURITY_INFORMATION = 0x00000001,
+            GROUP_SECURITY_INFORMATION = 0x00000002,
+            DACL_SECURITY_INFORMATION = 0x00000004,
+            SACL_SECURITY_INFORMATION = 0x00000008,
+            LABEL_SECURITY_INFORMATION = 0x00000010,
+            ATTRIBUTE_SECURITY_INFORMATION = 0x00000020,
+            SCOPE_SECURITY_INFORMATION = 0x00000040,
+            PROCESS_TRUST_LABEL_SECURITY_INFORMATION = 0x00000080,
+            ACCESS_FILTER_SECURITY_INFORMATION = 0x00000100,
+            BACKUP_SECURITY_INFORMATION = 0x00010000,
+            PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000,
+            PROTECTED_SACL_SECURITY_INFORMATION = 0x40000000,
+            UNPROTECTED_DACL_SECURITY_INFORMATION = 0x20000000,
+            UNPROTECTED_SACL_SECURITY_INFORMATION = 0x10000000
         }
 
         /// <summary>
@@ -331,18 +323,15 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ne-accctrl-access_mode
         /// </summary>
-        public sealed class ACCESS_MODE : Enumeration
+        public enum ACCESS_MODE : uint
         {
-            public static ACCESS_MODE NOT_USED_ACCESS = new(0, "NOT_USED_ACCESS");
-            public static ACCESS_MODE GRANT_ACCESS = new(1, "GRANT_ACCESS");
-            public static ACCESS_MODE SET_ACCESS = new(2, "SET_ACCESS");
-            public static ACCESS_MODE DENY_ACCESS = new(3, "DENY_ACCESS");
-            public static ACCESS_MODE REVOKE_ACCESS = new(4, "REVOKE_ACCESS");
-            public static ACCESS_MODE SET_AUDIT_SUCCESS = new(5, "SET_AUDIT_SUCCESS");
-            public static ACCESS_MODE SET_AUDIT_FAILURE = new(6, "SET_AUDIT_FAILURE");
-
-            public static implicit operator ACCESS_MODE(uint id) => GetAll<ACCESS_MODE>().Where(s => s.Id == id).FirstOrDefault();
-            private ACCESS_MODE(uint id, string name) : base (id, name) { }
+            NOT_USED_ACCESS,
+            GRANT_ACCESS,
+            SET_ACCESS,
+            DENY_ACCESS,
+            REVOKE_ACCESS,
+            SET_AUDIT_SUCCESS,
+            SET_AUDIT_FAILURE
         }
 
         /// <summary>
@@ -354,21 +343,18 @@ namespace Windows.Utilities
         /// 
         /// Documentation:
         /// </summary>
-        public sealed class ACE_FLAGS : Enumeration
+        public enum ACE_FLAGS : uint
         {
-            public static ACE_FLAGS OBJECT_INHERIT_ACE = new(0x1, "OBJECT_INHERIT_ACE");
-            public static ACE_FLAGS CONTAINER_INHERIT_ACE = new(0x2, "CONTAINER_INHERIT_ACE");
-            public static ACE_FLAGS NO_PROPAGATE_INHERIT_ACE = new(0x4, "NO_PROPAGATE_INHERIT_ACE");
-            public static ACE_FLAGS INHERIT_ONLY_ACE = new(0x8, "INHERIT_ONLY_ACE");
-            public static ACE_FLAGS INHERITED_ACE = new(0x10, "INHERITED_ACE");
-            public static ACE_FLAGS VALID_INHERIT_FLAGS = new(0x1F, "VALID_INHERIT_FLAGS");
-            public static ACE_FLAGS SUCCESSFUL_ACCESS_ACE_FLAG = new(0x20, "SUCCESSFUL_ACCESS_ACE_FLAG");
-            public static ACE_FLAGS CRITICAL_ACE_FLAG = new(0x40, "CRITICAL_ACE_FLAG");
-            public static ACE_FLAGS TRUST_PROTECTED_FILTER_ACE_FLAG = new(0x40, "TRUST_PROTECTED_FILTER_ACE_FLAG");
-            public static ACE_FLAGS FAILED_ACCESS_ACE_FLAG = new(0x80, "FAILED_ACCESS_ACE_FLAG");
-
-            public static implicit operator ACE_FLAGS(uint id) => GetAll<ACE_FLAGS>().Where(s => s.Id == id).FirstOrDefault();
-            private ACE_FLAGS(uint id, string name) : base (id, name) { }
+            OBJECT_INHERIT_ACE = 0x1,
+            CONTAINER_INHERIT_ACE = 0x2,
+            NO_PROPAGATE_INHERIT_ACE = 0x4,
+            INHERIT_ONLY_ACE = 0x8,
+            INHERITED_ACE = 0x10,
+            VALID_INHERIT_FLAGS = 0x1F,
+            SUCCESSFUL_ACCESS_ACE_FLAG = 0x20,
+            CRITICAL_ACE_FLAG = 0x40,
+            TRUST_PROTECTED_FILTER_ACE_FLAG = 0x40,
+            FAILED_ACCESS_ACE_FLAG = 0x80
         }
 
         /// <summary>
@@ -380,13 +366,10 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ne-accctrl-multiple_trustee_operation
         /// </summary>
-        public sealed class MULTIPLE_TRUSTEE_OPERATION : Enumeration
+        public enum MULTIPLE_TRUSTEE_OPERATION : uint
         {
-            public static MULTIPLE_TRUSTEE_OPERATION NO_MULTIPLE_TRUSTEE = new(0, "NO_MULTIPLE_TRUSTEE");
-            public static MULTIPLE_TRUSTEE_OPERATION TRUSTEE_IS_IMPERSONATE = new(1, "TRUSTEE_IS_IMPERSONATE");
-
-            public static implicit operator MULTIPLE_TRUSTEE_OPERATION(uint id) => GetAll<MULTIPLE_TRUSTEE_OPERATION>().Where(s => s.Id == id).FirstOrDefault();
-            private MULTIPLE_TRUSTEE_OPERATION(uint id, string name) : base (id, name) { }
+            NO_MULTIPLE_TRUSTEE,
+            TRUSTEE_IS_IMPERSONATE
         }
 
         /// <summary>
@@ -398,16 +381,13 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ne-accctrl-trustee_form
         /// </summary>
-        public sealed class TRUSTEE_FORM : Enumeration
+        public enum TRUSTEE_FORM : uint
         {
-            public static TRUSTEE_FORM TRUSTEE_IS_SID = new(0, "TRUSTEE_IS_SID");
-            public static TRUSTEE_FORM TRUSTEE_IS_NAME = new(1, "TRUSTEE_IS_NAME");
-            public static TRUSTEE_FORM TRUSTEE_BAD_FORM = new(2, "TRUSTEE_BAD_FORM");
-            public static TRUSTEE_FORM TRUSTEE_IS_OBJECTS_AND_SID = new(3, "TRUSTEE_IS_OBJECTS_AND_SID");
-            public static TRUSTEE_FORM TRUSTEE_IS_OBJECTS_AND_NAME = new(4, "TRUSTEE_IS_OBJECTS_AND_NAME");
-
-            public static implicit operator TRUSTEE_FORM(uint id) => GetAll<TRUSTEE_FORM>().Where(s => s.Id == id).FirstOrDefault();
-            private TRUSTEE_FORM(uint id, string name) : base(id, name) { }
+            TRUSTEE_IS_SID,
+            TRUSTEE_IS_NAME,
+            TRUSTEE_BAD_FORM,
+            TRUSTEE_IS_OBJECTS_AND_SID,
+            TRUSTEE_IS_OBJECTS_AND_NAME
         }
 
         /// <summary>
@@ -419,20 +399,17 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ne-accctrl-trustee_type
         /// </summary>
-        public sealed class TRUSTEE_TYPE : Enumeration
+        public enum TRUSTEE_TYPE : uint
         {
-            public static TRUSTEE_TYPE TRUSTEE_IS_UNKNOWN = new(0, "TRUSTEE_IS_UNKNOWN");
-            public static TRUSTEE_TYPE TRUSTEE_IS_USER = new(1, "TRUSTEE_IS_USER");
-            public static TRUSTEE_TYPE TRUSTEE_IS_GROUP = new(2, "TRUSTEE_IS_GROUP");
-            public static TRUSTEE_TYPE TRUSTEE_IS_DOMAIN = new(3, "TRUSTEE_IS_DOMAIN");
-            public static TRUSTEE_TYPE TRUSTEE_IS_ALIAS = new(4, "TRUSTEE_IS_ALIAS");
-            public static TRUSTEE_TYPE TRUSTEE_IS_WELL_KNOWN_GROUP = new(5, "TRUSTEE_IS_WELL_KNOWN_GROUP");
-            public static TRUSTEE_TYPE TRUSTEE_IS_DELETED = new(6, "TRUSTEE_IS_DELETED");
-            public static TRUSTEE_TYPE TRUSTEE_IS_INVALID = new(7, "TRUSTEE_IS_INVALID");
-            public static TRUSTEE_TYPE TRUSTEE_IS_COMPUTER = new(8, "TRUSTEE_IS_COMPUTER");
-
-            public static implicit operator TRUSTEE_TYPE(uint id) => GetAll<TRUSTEE_TYPE>().Where(s => s.Id == id).FirstOrDefault();
-            private TRUSTEE_TYPE(uint id, string name) : base(id, name) { }
+            TRUSTEE_IS_UNKNOWN,
+            TRUSTEE_IS_USER,
+            TRUSTEE_IS_GROUP,
+            TRUSTEE_IS_DOMAIN,
+            TRUSTEE_IS_ALIAS,
+            TRUSTEE_IS_WELL_KNOWN_GROUP,
+            TRUSTEE_IS_DELETED,
+            TRUSTEE_IS_INVALID,
+            TRUSTEE_IS_COMPUTER
         }
 
         /// <summary>
@@ -444,13 +421,10 @@ namespace Windows.Utilities
         /// 
         /// Documentation:
         /// </summary>
-        public sealed class OBJECTS_PRESENT : Enumeration
+        public enum OBJECTS_PRESENT : uint
         {
-            public static OBJECTS_PRESENT ACE_OBJECT_TYPE_PRESENT = new(0x1, "ACE_OBJECT_TYPE_PRESENT");
-            public static OBJECTS_PRESENT ACE_INHERITED_OBJECT_TYPE_PRESENT = new(0x2, "ACE_INHERITED_OBJECT_TYPE_PRESENT");
-
-            public static implicit operator OBJECTS_PRESENT(uint id) => GetAll<OBJECTS_PRESENT>().Where(s => s.Id == id).FirstOrDefault();
-            private OBJECTS_PRESENT(uint id, string name) : base (id, name) { }
+            ACE_OBJECT_TYPE_PRESENT = 0x1,
+            ACE_INHERITED_OBJECT_TYPE_PRESENT = 0x2,
         }
 
         /// <summary>
@@ -464,25 +438,22 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ne-accctrl-se_object_type
         /// </summary>
-        public sealed class SE_OBJECT_TYPE : Enumeration
+        public enum SE_OBJECT_TYPE : uint
         {
-            public static SE_OBJECT_TYPE SE_UNKNOWN_OBJECT_TYPE = new(0, "SE_UNKNOWN_OBJECT_TYPE");
-            public static SE_OBJECT_TYPE SE_FILE_OBJECT = new(1, "SE_FILE_OBJECT");
-            public static SE_OBJECT_TYPE SE_SERVICE = new(2, "SE_SERVICE");
-            public static SE_OBJECT_TYPE SE_PRINTER = new(3, "SE_PRINTER");
-            public static SE_OBJECT_TYPE SE_REGISTRY_KEY = new(4, "SE_REGISTRY_KEY");
-            public static SE_OBJECT_TYPE SE_LMSHARE = new(5, "SE_LMSHARE");
-            public static SE_OBJECT_TYPE SE_KERNEL_OBJECT = new(6, "SE_KERNEL_OBJECT");
-            public static SE_OBJECT_TYPE SE_WINDOW_OBJECT = new(7, "SE_WINDOW_OBJECT");
-            public static SE_OBJECT_TYPE SE_DS_OBJECT = new(8, "SE_DS_OBJECT");
-            public static SE_OBJECT_TYPE SE_DS_OBJECT_ALL = new(9, "SE_DS_OBJECT_ALL");
-            public static SE_OBJECT_TYPE SE_PROVIDER_DEFINED_OBJECT = new(10, "SE_PROVIDER_DEFINED_OBJECT");
-            public static SE_OBJECT_TYPE SE_WMIGUID_OBJECT = new(11, "SE_WMIGUID_OBJECT");
-            public static SE_OBJECT_TYPE SE_REGISTRY_WOW64_32KEY = new(12, "SE_REGISTRY_WOW64_32KEY");
-            public static SE_OBJECT_TYPE SE_REGISTRY_WOW64_64KEY = new(13, "SE_REGISTRY_WOW64_64KEY");
-
-            public static implicit operator SE_OBJECT_TYPE(uint id) => GetAll<SE_OBJECT_TYPE>().Where(s => s.Id == id).FirstOrDefault();
-            private SE_OBJECT_TYPE(uint id, string name) : base (id, name) { }
+            SE_UNKNOWN_OBJECT_TYPE,
+            SE_FILE_OBJECT,
+            SE_SERVICE,
+            SE_PRINTER,
+            SE_REGISTRY_KEY,
+            SE_LMSHARE,
+            SE_KERNEL_OBJECT,
+            SE_WINDOW_OBJECT,
+            SE_DS_OBJECT,
+            SE_DS_OBJECT_ALL,
+            SE_PROVIDER_DEFINED_OBJECT,
+            SE_WMIGUID_OBJECT,
+            SE_REGISTRY_WOW64_32KEY,
+            SE_REGISTRY_WOW64_64KEY
         }
 
         /// <summary>
@@ -495,35 +466,32 @@ namespace Windows.Utilities
         /// 
         /// Documentation:
         /// </summary>
-        public class ACCESS_TYPE : Enumeration
+        public enum ACCESS_TYPE : uint
         {
             // The following are masks for the predefined standard access types.
-            public static ACCESS_TYPE DELETE = new(0x00010000, "DELETE");
-            public static ACCESS_TYPE READ_CONTROL = new(0x00020000, "READ_CONTROL");
-            public static ACCESS_TYPE WRITE_DAC = new(0x00040000, "WRITE_DAC");
-            public static ACCESS_TYPE WRITE_OWNER = new(0x00080000, "WRITE_OWNER");
-            public static ACCESS_TYPE SYNCHRONIZE = new(0x00100000, "SYNCHRONIZE");
-            public static ACCESS_TYPE STANDARD_RIGHTS_REQUIRED = new(0x000F0000, "STANDARD_RIGHTS_REQUIRED");
-            public static ACCESS_TYPE STANDARD_RIGHTS_READ = new(READ_CONTROL.Id, "STANDARD_RIGHTS_READ");
-            public static ACCESS_TYPE STANDARD_RIGHTS_WRITE = new(READ_CONTROL.Id, "STANDARD_RIGHTS_WRITE");
-            public static ACCESS_TYPE STANDARD_RIGHTS_EXECUTE = new(READ_CONTROL.Id, "STANDARD_RIGHTS_EXECUTE");
-            public static ACCESS_TYPE STANDARD_RIGHTS_ALL = new(0x001F0000, "STANDARD_RIGHTS_ALL");
-            public static ACCESS_TYPE SPECIFIC_RIGHTS_ALL = new(0x0000FFFF, "SPECIFIC_RIGHTS_ALL");
+            DELETE = 0x00010000,
+            READ_CONTROL = 0x00020000,
+            WRITE_DAC = 0x00040000,
+            WRITE_OWNER = 0x00080000,
+            SYNCHRONIZE = 0x00100000,
+            STANDARD_RIGHTS_REQUIRED = 0x000F0000,
+            STANDARD_RIGHTS_READ = READ_CONTROL,
+            STANDARD_RIGHTS_WRITE = READ_CONTROL,
+            STANDARD_RIGHTS_EXECUTE = READ_CONTROL,
+            STANDARD_RIGHTS_ALL = 0x001F0000,
+            SPECIFIC_RIGHTS_ALL = 0x0000FFFF,
 
             // AccessSystemAcl access type
-            public static ACCESS_TYPE ACCESS_SYSTEM_SECURITY = new(0x01000000, "ACCESS_SYSTEM_SECURITY");
+            ACCESS_SYSTEM_SECURITY = 0x01000000,
 
             // MaximumAllowed access type
-            public static ACCESS_TYPE MAXIMUM_ALLOWED = new(0x02000000, "MAXIMUM_ALLOWED");
-            
-            //  These are the generic rights.
-            public static ACCESS_TYPE GENERIC_READ = new(0x80000000, "GENERIC_READ");
-            public static ACCESS_TYPE GENERIC_WRITE = new(0x40000000, "GENERIC_WRITE");
-            public static ACCESS_TYPE GENERIC_EXECUTE = new(0x20000000, "GENERIC_EXECUTE");
-            public static ACCESS_TYPE GENERIC_ALL = new(0x10000000, "GENERIC_ALL");
+            MAXIMUM_ALLOWED = 0x02000000,
 
-            public static implicit operator ACCESS_TYPE(uint id) => GetAll<ACCESS_TYPE>().Where(s => s.Id == id).FirstOrDefault();
-            protected ACCESS_TYPE(uint id, string name) : base(id, name) { }
+            //  These are the generic rights.
+            GENERIC_READ = 0x80000000,
+            GENERIC_WRITE = 0x40000000,
+            GENERIC_EXECUTE = 0x20000000,
+            GENERIC_ALL = 0x10000000
         }
 
         /// <summary>
@@ -535,59 +503,51 @@ namespace Windows.Utilities
         /// 
         /// Documentation:
         /// </summary>
-        public sealed class TOKEN_ACCESS_RIGHT : ACCESS_TYPE
+        public enum TOKEN_ACCESS_RIGHT : uint
         {
-            public static TOKEN_ACCESS_RIGHT TOKEN_ASSIGN_PRIMARY = new(0x0001, "TOKEN_ASSIGN_PRIMARY");
-            public static TOKEN_ACCESS_RIGHT TOKEN_DUPLICATE = new(0x0002, "TOKEN_DUPLICATE");
-            public static TOKEN_ACCESS_RIGHT TOKEN_IMPERSONATE = new(0x0004, "TOKEN_IMPERSONATE");
-            public static TOKEN_ACCESS_RIGHT TOKEN_QUERY = new(0x0008, "TOKEN_QUERY");
-            public static TOKEN_ACCESS_RIGHT TOKEN_QUERY_SOURCE = new(0x0010, "TOKEN_QUERY_SOURCE");
-            public static TOKEN_ACCESS_RIGHT TOKEN_ADJUST_PRIVILEGES = new(0x0020, "TOKEN_ADJUST_PRIVILEGES");
-            public static TOKEN_ACCESS_RIGHT TOKEN_ADJUST_GROUPS = new(0x0040, "TOKEN_ADJUST_GROUPS");
-            public static TOKEN_ACCESS_RIGHT TOKEN_ADJUST_DEFAULT = new(0x0080, "TOKEN_ADJUST_DEFAULT");
-            public static TOKEN_ACCESS_RIGHT TOKEN_ADJUST_SESSIONID = new(0x0100, "TOKEN_ADJUST_SESSIONID");
-            public static TOKEN_ACCESS_RIGHT TOKEN_ALL_ACCESS_P = new(STANDARD_RIGHTS_REQUIRED |
-                                                                      TOKEN_ASSIGN_PRIMARY |
-                                                                      TOKEN_DUPLICATE |
-                                                                      TOKEN_IMPERSONATE |
-                                                                      TOKEN_QUERY |
-                                                                      TOKEN_QUERY_SOURCE |
-                                                                      TOKEN_ADJUST_PRIVILEGES |
-                                                                      TOKEN_ADJUST_GROUPS |
-                                                                      TOKEN_ADJUST_DEFAULT,
-                                                                      "TOKEN_ALL_ACCESS_P");
+            TOKEN_ASSIGN_PRIMARY = 0x0001,
+            TOKEN_DUPLICATE = 0x0002,
+            TOKEN_IMPERSONATE = 0x0004,
+            TOKEN_QUERY = 0x0008,
+            TOKEN_QUERY_SOURCE = 0x0010,
+            TOKEN_ADJUST_PRIVILEGES = 0x0020,
+            TOKEN_ADJUST_GROUPS = 0x0040,
+            TOKEN_ADJUST_DEFAULT = 0x0080,
+            TOKEN_ADJUST_SESSIONID = 0x0100,
+            TOKEN_ALL_ACCESS_P = ACCESS_TYPE.STANDARD_RIGHTS_REQUIRED |
+                                 TOKEN_ASSIGN_PRIMARY |
+                                 TOKEN_DUPLICATE |
+                                 TOKEN_IMPERSONATE |
+                                 TOKEN_QUERY |
+                                 TOKEN_QUERY_SOURCE |
+                                 TOKEN_ADJUST_PRIVILEGES |
+                                 TOKEN_ADJUST_GROUPS |
+                                 TOKEN_ADJUST_DEFAULT,
 
             // #if ((defined(_WIN32_WINNT) && (_WIN32_WINNT > 0x0400)) || (!defined(_WIN32_WINNT)))
-            public static TOKEN_ACCESS_RIGHT TOKEN_ALL_ACCESS = new(TOKEN_ALL_ACCESS_P | TOKEN_ADJUST_SESSIONID, "TOKEN_ALL_ACCESS");
+            TOKEN_ALL_ACCESS = TOKEN_ALL_ACCESS_P | TOKEN_ADJUST_SESSIONID,
             // #else
             // #define TOKEN_ALL_ACCESS TOKEN_ALL_ACCESS_P
             // #endif
+            TOKEN_READ = ACCESS_TYPE.STANDARD_RIGHTS_READ | TOKEN_QUERY,
+            TOKEN_WRITE = ACCESS_TYPE.STANDARD_RIGHTS_WRITE |
+                          TOKEN_ADJUST_PRIVILEGES |
+                          TOKEN_ADJUST_GROUPS |
+                          TOKEN_ADJUST_DEFAULT,
 
-            public static TOKEN_ACCESS_RIGHT TOKEN_READ = new(STANDARD_RIGHTS_READ | TOKEN_QUERY, "TOKEN_READ");
-            public static TOKEN_ACCESS_RIGHT TOKEN_WRITE = new(STANDARD_RIGHTS_WRITE |
-                                                               TOKEN_ADJUST_PRIVILEGES |
-                                                               TOKEN_ADJUST_GROUPS |
-                                                               TOKEN_ADJUST_DEFAULT,
-                                                               "TOKEN_WRITE");
+            TOKEN_EXECUTE = ACCESS_TYPE.STANDARD_RIGHTS_EXECUTE,
+            TOKEN_TRUST_CONSTRAINT_MASK = ACCESS_TYPE.STANDARD_RIGHTS_READ |
+                                          TOKEN_QUERY |
+                                          TOKEN_QUERY_SOURCE,
 
-            public static TOKEN_ACCESS_RIGHT TOKEN_EXECUTE = new(STANDARD_RIGHTS_EXECUTE, "TOKEN_EXECUTE");
-            public static TOKEN_ACCESS_RIGHT TOKEN_TRUST_CONSTRAINT_MASK = new(STANDARD_RIGHTS_READ |
-                                                                               TOKEN_QUERY |
-                                                                               TOKEN_QUERY_SOURCE,
-                                                                               "TOKEN_TRUST_CONSTRAINT_MASK");
-
-            public static TOKEN_ACCESS_RIGHT TOKEN_TRUST_ALLOWED_MASK = new(TOKEN_TRUST_CONSTRAINT_MASK |
-                                                                            TOKEN_DUPLICATE |
-                                                                            TOKEN_IMPERSONATE,
-                                                                            "TOKEN_TRUST_ALLOWED_MASK");
+            TOKEN_TRUST_ALLOWED_MASK = TOKEN_TRUST_CONSTRAINT_MASK |
+                                       TOKEN_DUPLICATE |
+                                       TOKEN_IMPERSONATE,
 
             // #if (NTDDI_VERSION >= NTDDI_WIN8)
-            public static TOKEN_ACCESS_RIGHT TOKEN_ACCESS_PSEUDO_HANDLE_WIN8 = new(TOKEN_QUERY.Id | TOKEN_QUERY_SOURCE.Id, "TOKEN_ACCESS_PSEUDO_HANDLE_WIN8");
-            public static TOKEN_ACCESS_RIGHT TOKEN_ACCESS_PSEUDO_HANDLE = new(TOKEN_ACCESS_PSEUDO_HANDLE_WIN8.Id, "TOKEN_ACCESS_PSEUDO_HANDLE");
+            TOKEN_ACCESS_PSEUDO_HANDLE_WIN8 = TOKEN_QUERY | TOKEN_QUERY_SOURCE,
+            TOKEN_ACCESS_PSEUDO_HANDLE = TOKEN_ACCESS_PSEUDO_HANDLE_WIN8
             // #endif
-
-            public static implicit operator TOKEN_ACCESS_RIGHT(uint id) => GetAll<TOKEN_ACCESS_RIGHT>().Where(s => s.Id == id).FirstOrDefault();
-            private TOKEN_ACCESS_RIGHT(uint id, string name) : base (id, name) { }
         }
 
         /// <summary>
@@ -599,22 +559,17 @@ namespace Windows.Utilities
         /// 
         /// Documentation:
         /// </summary>
-        public sealed class PRIVILEGE_ATTRIBUTE : Enumeration
+        public enum PRIVILEGE_ATTRIBUTE : uint
         {
-            public static PRIVILEGE_ATTRIBUTE SE_PRIVILEGE_ENABLED_BY_DEFAULT = new(0x00000001, "SE_PRIVILEGE_ENABLED_BY_DEFAULT");
-            public static PRIVILEGE_ATTRIBUTE SE_PRIVILEGE_ENABLED = new(0x00000002, "SE_PRIVILEGE_ENABLED");
-            public static PRIVILEGE_ATTRIBUTE SE_PRIVILEGE_REMOVED = new(0X00000004, "SE_PRIVILEGE_REMOVED");
-            public static PRIVILEGE_ATTRIBUTE SE_PRIVILEGE_USED_FOR_ACCESS = new(0x80000000, "SE_PRIVILEGE_USED_FOR_ACCESS");
-            public static PRIVILEGE_ATTRIBUTE SE_PRIVILEGE_VALID_ATTRIBUTES = new(SE_PRIVILEGE_ENABLED_BY_DEFAULT |
-                                                                                  SE_PRIVILEGE_ENABLED |
-                                                                                  SE_PRIVILEGE_REMOVED |
-                                                                                  SE_PRIVILEGE_USED_FOR_ACCESS,
-                                                                                  "SE_PRIVILEGE_VALID_ATTRIBUTES");
-
-            public static implicit operator PRIVILEGE_ATTRIBUTE(uint id) => GetAll<PRIVILEGE_ATTRIBUTE>().Where(s => s.Id == id).FirstOrDefault();
-            private PRIVILEGE_ATTRIBUTE(uint id, string name) : base(id, name) { }
+            SE_PRIVILEGE_ENABLED_BY_DEFAULT = 0x00000001,
+            SE_PRIVILEGE_ENABLED = 0x00000002,
+            SE_PRIVILEGE_REMOVED = 0X00000004,
+            SE_PRIVILEGE_USED_FOR_ACCESS = 0x80000000,
+            SE_PRIVILEGE_VALID_ATTRIBUTES = SE_PRIVILEGE_ENABLED_BY_DEFAULT |
+                                            SE_PRIVILEGE_ENABLED |
+                                            SE_PRIVILEGE_REMOVED |
+                                            SE_PRIVILEGE_USED_FOR_ACCESS
         }
-        #endregion
 
         #region Structures
 

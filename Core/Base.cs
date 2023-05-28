@@ -22,7 +22,7 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         internal static extern int FormatMessage(
-            uint dwFlags,
+            Base.FORMAT_MESSAGE_FLAGS dwFlags,
             IntPtr lpSource,
             int dwMessageId,
             uint dwLanguageId,
@@ -58,19 +58,16 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-formatmessage
         /// </summary>
-        
-        public sealed class FORMAT_MESSAGE_FLAGS : Enumeration
-        {
-            public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_ALLOCATE_BUFFER = new(0x00000100, "FORMAT_MESSAGE_ALLOCATE_BUFFER");
-            public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_IGNORE_INSERTS = new(0x00000200, "FORMAT_MESSAGE_IGNORE_INSERTS");
-            public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_FROM_STRING = new(0x00000400, "FORMAT_MESSAGE_FROM_STRING");
-            public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_FROM_HMODULE = new(0x00000800, "FORMAT_MESSAGE_FROM_HMODULE");
-            public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_FROM_SYSTEM = new(0x00001000, "FORMAT_MESSAGE_FROM_SYSTEM");
-            public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_ARGUMENT_ARRAY = new(0x00002000, "FORMAT_MESSAGE_ARGUMENT_ARRAY");
-            public static FORMAT_MESSAGE_FLAGS FORMAT_MESSAGE_MAX_WIDTH_MASK = new(0x000000FF, "FORMAT_MESSAGE_MAX_WIDTH_MASK");
 
-            public static implicit operator FORMAT_MESSAGE_FLAGS(uint id) => GetAll<FORMAT_MESSAGE_FLAGS>().Where(s => s.Id == id).FirstOrDefault();
-            private FORMAT_MESSAGE_FLAGS(uint id, string name) : base(id, name) { }
+        public enum FORMAT_MESSAGE_FLAGS : uint
+        {
+            FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x00000100,
+            FORMAT_MESSAGE_IGNORE_INSERTS = 0x00000200,
+            FORMAT_MESSAGE_FROM_STRING = 0x00000400,
+            FORMAT_MESSAGE_FROM_HMODULE = 0x00000800,
+            FORMAT_MESSAGE_FROM_SYSTEM = 0x00001000,
+            FORMAT_MESSAGE_ARGUMENT_ARRAY = 0x00002000,
+            FORMAT_MESSAGE_MAX_WIDTH_MASK = 0x000000FF
         }
         #endregion
 

@@ -20,7 +20,7 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         internal static extern SystemSafeHandle OpenProcess(
-            uint dwDesiredAccess,
+            ProcessAndThread.PROCESS_SECURITY dwDesiredAccess,
             bool bInheritHandle,
             uint dwProcessId
         );
@@ -136,8 +136,6 @@ namespace Windows.Utilities
 
     public class ProcessAndThread : IDisposable
     {
-        #region Enumerations
-
         /// <summary>
         /// Retrieves a pseudo handle for the current process.
         /// 
@@ -147,30 +145,27 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/procthread/process-security-and-access-rights
         /// </summary>
-        public sealed class PROCESS_SECURITY : AccessControl.ACCESS_TYPE
+        public enum PROCESS_SECURITY : uint
         {
-            public static PROCESS_SECURITY PROCESS_TERMINATE = new(0x0001, "PROCESS_TERMINATE");
-            public static PROCESS_SECURITY PROCESS_CREATE_THREAD = new(0x0002, "PROCESS_CREATE_THREAD");
-            public static PROCESS_SECURITY PROCESS_SET_SESSIONID = new(0x0004, "PROCESS_SET_SESSIONID");
-            public static PROCESS_SECURITY PROCESS_VM_OPERATION = new(0x0008, "PROCESS_VM_OPERATION");
-            public static PROCESS_SECURITY PROCESS_VM_READ = new(0x0010, "PROCESS_VM_READ");
-            public static PROCESS_SECURITY PROCESS_VM_WRITE = new(0x0020, "PROCESS_VM_WRITE");
-            public static PROCESS_SECURITY PROCESS_DUP_HANDLE = new(0x0040, "PROCESS_DUP_HANDLE");
-            public static PROCESS_SECURITY PROCESS_CREATE_PROCESS = new(0x0080, "PROCESS_CREATE_PROCESS");
-            public static PROCESS_SECURITY PROCESS_SET_QUOTA = new(0x0100, "PROCESS_SET_QUOTA");
-            public static PROCESS_SECURITY PROCESS_SET_INFORMATION = new(0x0200, "PROCESS_SET_INFORMATION");
-            public static PROCESS_SECURITY PROCESS_QUERY_INFORMATION = new(0x0400, "PROCESS_QUERY_INFORMATION");
-            public static PROCESS_SECURITY PROCESS_SUSPEND_RESUME = new(0x0800, "PROCESS_SUSPEND_RESUME");
-            public static PROCESS_SECURITY PROCESS_QUERY_LIMITED_INFORMATION = new(0x1000, "PROCESS_QUERY_LIMITED_INFORMATION");
-            public static PROCESS_SECURITY PROCESS_SET_LIMITED_INFORMATION = new(0x2000, "PROCESS_SET_LIMITED_INFORMATION");
-
+            PROCESS_TERMINATE = 0x0001,
+            PROCESS_CREATE_THREAD = 0x0002,
+            PROCESS_SET_SESSIONID = 0x0004,
+            PROCESS_VM_OPERATION = 0x0008,
+            PROCESS_VM_READ = 0x0010,
+            PROCESS_VM_WRITE = 0x0020,
+            PROCESS_DUP_HANDLE = 0x0040,
+            PROCESS_CREATE_PROCESS = 0x0080,
+            PROCESS_SET_QUOTA = 0x0100,
+            PROCESS_SET_INFORMATION = 0x0200,
+            PROCESS_QUERY_INFORMATION = 0x0400,
+            PROCESS_SUSPEND_RESUME = 0x0800,
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000,
+            PROCESS_SET_LIMITED_INFORMATION = 0x2000,
             // #if (NTDDI_VERSION >= NTDDI_VISTA)
-            public static PROCESS_SECURITY PROCESS_ALL_ACCESS = new(STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFFF, "PROCESS_ALL_ACCESS");
+            PROCESS_ALL_ACCESS = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_REQUIRED | AccessControl.ACCESS_TYPE.SYNCHRONIZE | 0xFFFF
             // #else
             // #define PROCESS_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFF)
             // #endif
-
-            private PROCESS_SECURITY(uint id, string name) : base(id, name) { }
         }
 
         /// <summary>
@@ -182,28 +177,25 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/procthread/thread-security-and-access-rights
         /// </summary>
-        public sealed class THREAD_SECURITY : AccessControl.ACCESS_TYPE
+        public enum THREAD_SECURITY : uint
         {
-            public static THREAD_SECURITY THREAD_TERMINATE = new(0x0001, "THREAD_TERMINATE");
-            public static THREAD_SECURITY THREAD_SUSPEND_RESUME = new(0x0002, "THREAD_SUSPEND_RESUME");
-            public static THREAD_SECURITY THREAD_GET_CONTEXT = new(0x0008, "THREAD_GET_CONTEXT");
-            public static THREAD_SECURITY THREAD_SET_CONTEXT = new(0x0010, "THREAD_SET_CONTEXT");
-            public static THREAD_SECURITY THREAD_QUERY_INFORMATION = new(0x0040, "THREAD_QUERY_INFORMATION");
-            public static THREAD_SECURITY THREAD_SET_INFORMATION = new(0x0020, "THREAD_SET_INFORMATION");
-            public static THREAD_SECURITY THREAD_SET_THREAD_TOKEN = new(0x0080, "THREAD_SET_THREAD_TOKEN");
-            public static THREAD_SECURITY THREAD_IMPERSONATE = new(0x0100, "THREAD_IMPERSONATE");
-            public static THREAD_SECURITY THREAD_DIRECT_IMPERSONATION = new(0x0200, "THREAD_DIRECT_IMPERSONATION");
-            public static THREAD_SECURITY THREAD_SET_LIMITED_INFORMATION = new(0x0400, "THREAD_SET_LIMITED_INFORMATION");
-            public static THREAD_SECURITY THREAD_QUERY_LIMITED_INFORMATION = new(0x0800, "THREAD_QUERY_LIMITED_INFORMATION");
-            public static THREAD_SECURITY THREAD_RESUME = new(0x1000, "THREAD_RESUME");
-
+            THREAD_TERMINATE = 0x0001,
+            THREAD_SUSPEND_RESUME = 0x0002,
+            THREAD_GET_CONTEXT = 0x0008,
+            THREAD_SET_CONTEXT = 0x0010,
+            THREAD_QUERY_INFORMATION = 0x0040,
+            THREAD_SET_INFORMATION = 0x0020,
+            THREAD_SET_THREAD_TOKEN = 0x0080,
+            THREAD_IMPERSONATE = 0x0100,
+            THREAD_DIRECT_IMPERSONATION = 0x0200,
+            THREAD_SET_LIMITED_INFORMATION = 0x0400,
+            THREAD_QUERY_LIMITED_INFORMATION = 0x0800,
+            THREAD_RESUME = 0x1000,
             // #if (NTDDI_VERSION >= NTDDI_VISTA)
-            public static THREAD_SECURITY THREAD_ALL_ACCESS = new(STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFFF, "THREAD_ALL_ACCESS");
+            THREAD_ALL_ACCESS = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_REQUIRED | AccessControl.ACCESS_TYPE.SYNCHRONIZE | 0xFFFF
             // #else
             // #define THREAD_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x3FF)
             // #endif
-
-            private THREAD_SECURITY(uint id, string name) : base(id, name) { }
         }
 
         /// <summary>
@@ -215,19 +207,16 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/procthread/job-object-security-and-access-rights
         /// </summary>
-        public sealed class JOB_OBJECT_SECURITY : AccessControl.ACCESS_TYPE
+        public enum JOB_OBJECT_SECURITY : uint
         {
-            public static JOB_OBJECT_SECURITY JOB_OBJECT_ASSIGN_PROCESS = new(0x0001, "JOB_OBJECT_ASSIGN_PROCESS");
-            public static JOB_OBJECT_SECURITY JOB_OBJECT_SET_ATTRIBUTES = new(0x0002, "JOB_OBJECT_SET_ATTRIBUTES");
-            public static JOB_OBJECT_SECURITY JOB_OBJECT_QUERY = new(0x0004, "JOB_OBJECT_QUERY");
-            public static JOB_OBJECT_SECURITY JOB_OBJECT_TERMINATE = new(0x0008, "JOB_OBJECT_TERMINATE");
-            public static JOB_OBJECT_SECURITY JOB_OBJECT_SET_SECURITY_ATTRIBUTES = new(0x0010, "JOB_OBJECT_SET_SECURITY_ATTRIBUTES");
-            public static JOB_OBJECT_SECURITY JOB_OBJECT_IMPERSONATE = new(0x0020, "JOB_OBJECT_IMPERSONATE");
-            public static JOB_OBJECT_SECURITY JOB_OBJECT_ALL_ACCESS = new(STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x3F, "JOB_OBJECT_ALL_ACCESS");
-
-            private JOB_OBJECT_SECURITY(uint id, string name) : base (id, name) { }
+            JOB_OBJECT_ASSIGN_PROCESS = 0x0001,
+            JOB_OBJECT_SET_ATTRIBUTES = 0x0002,
+            JOB_OBJECT_QUERY = 0x0004,
+            JOB_OBJECT_TERMINATE = 0x0008,
+            JOB_OBJECT_SET_SECURITY_ATTRIBUTES = 0x0010,
+            JOB_OBJECT_IMPERSONATE = 0x0020,
+            JOB_OBJECT_ALL_ACCESS = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_REQUIRED | AccessControl.ACCESS_TYPE.SYNCHRONIZE | 0x3F
         }
-        #endregion
 
         private static readonly Dictionary<uint, string[]> _process_added_privilege_list = new();
         
