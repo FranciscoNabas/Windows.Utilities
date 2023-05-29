@@ -237,9 +237,9 @@ namespace Windows.Utilities
             using Process current_process = Process.GetCurrentProcess();
             if (_process_added_privilege_list.TryGetValue((uint)current_process.Id, out string[] existing_privileges))
             {
-                string[] unique_privileges = (string[])(from string privilege in added_privileges
+                string[] unique_privileges = (from string privilege in added_privileges
                                              where !existing_privileges.Contains(privilege)
-                                             select privilege);
+                                             select privilege).ToArray();
                 
                 if (unique_privileges.Length > 0)
                 {

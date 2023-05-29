@@ -705,22 +705,15 @@ namespace Windows.Utilities
         /// 
         /// Documentation: https://learn.microsoft.com/windows/win32/api/accctrl/ns-accctrl-trustee_w
         /// </summary>
-        [StructLayout(LayoutKind.Explicit)]
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         internal struct TRUSTEE_W
         {
-            // This member is not currently supported and must be NULL.
-            [FieldOffset(0)] internal IntPtr pMultipleTrustee;
-            [FieldOffset(1)] internal MULTIPLE_TRUSTEE_OPERATION MultipleTrusteeOperation;
-            [FieldOffset(2)] internal TRUSTEE_FORM TrusteeForm;
-            [FieldOffset(3)] internal TRUSTEE_TYPE TrusteeType;
-
-            // Union.
-            [FieldOffset(4)] internal string u_ptstrName;
-            [FieldOffset(4)] internal SID pSid;
-            [FieldOffset(4)] internal OBJECTS_AND_SID pObjectsAndSid;
-            [FieldOffset(4)] internal OBJECTS_AND_NAME_W pObjectsAndName;
-
-            [FieldOffset(5)] internal string ptstrName;
+            internal IntPtr pMultipleTrustee;
+            internal MULTIPLE_TRUSTEE_OPERATION MultipleTrusteeOperation;
+            internal TRUSTEE_FORM TrusteeForm;
+            internal TRUSTEE_TYPE TrusteeType;
+            internal string u_ptstrName;
+            internal string ptstrName;
         }
 
         /// <summary>
