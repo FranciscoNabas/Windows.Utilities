@@ -245,10 +245,10 @@ namespace Windows.Utilities
 
             SystemSafeHandle current_process_handle = NativeFunctions.GetCurrentProcess();
             if (!NativeFunctions.OpenProcessToken(current_process_handle, desired_access, out SystemSafeHandle token_handle))
-                throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
             if (token_handle.IsInvalid)
-                throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
             return token_handle;
         }
@@ -259,6 +259,7 @@ namespace Windows.Utilities
     /// </summary>
     public class AccessControl : IDisposable
     {
+        #region Enumerations
         /// <summary>
         /// The SECURITY_DESCRIPTOR_CONTROL data type is a set of bit flags that qualify the meaning of a security descriptor or its components.
         /// Each security descriptor has a Control member that stores the SECURITY_DESCRIPTOR_CONTROL bits.
@@ -570,6 +571,7 @@ namespace Windows.Utilities
                                             SE_PRIVILEGE_REMOVED |
                                             SE_PRIVILEGE_USED_FOR_ACCESS
         }
+        #endregion
 
         #region Structures
 
@@ -803,13 +805,13 @@ namespace Windows.Utilities
             foreach (string privilege in privilege_list)
             {
                 if (!NativeFunctions.LookupPrivilegeValue(string.Empty, NativeFunctions.SE_DEBUG_NAME, ref token_privileges.Privileges[0].Luid))
-                    throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
                 token_privileges.Privileges[0].Attributes = PRIVILEGE_ATTRIBUTE.SE_PRIVILEGE_ENABLED | PRIVILEGE_ATTRIBUTE.SE_PRIVILEGE_USED_FOR_ACCESS;
                 token_privileges.PrivilegeCount = 1;
 
                 if (!NativeFunctions.AdjustTokenPrivileges(h_token, false, ref token_privileges, 0, IntPtr.Zero, IntPtr.Zero))
-                    throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
             }
         }
     }

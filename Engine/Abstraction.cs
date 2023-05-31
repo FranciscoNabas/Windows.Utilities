@@ -2,10 +2,69 @@
 using System.Linq;
 using System.Reflection;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 
 namespace Windows.Utilities
 {
+    [Serializable()]
+    public class NativeException : Exception
+    {
+        private int _native_error_number;
+        private string? _stack_trace;
+
+        public override string StackTrace
+        {
+            get
+            {
+                if (_stack_trace is null)
+                    return base.StackTrace;
+
+                return _stack_trace;
+            }
+        }
+
+        public int NativeErrorNumber
+        {
+            get
+            {
+                return _native_error_number;
+            }
+            set
+            {
+                _native_error_number = value;
+            }
+        }
+
+        protected NativeException() : base() { }
+
+        protected NativeException(SerializationInfo info, StreamingContext context) : base(info, context) { }
+
+        public NativeException(int error_number) :
+            base(string.Format("Native exception. Function set error '{0}'.", error_number))
+        {
+            _native_error_number = error_number;
+        }
+
+        public NativeException(int error_code, string message) :
+            base(message)
+        {
+            _native_error_number= error_code;
+        }
+
+        public NativeException(int error_code, string message, Exception inner_exception) :
+            base(message, inner_exception)
+        {
+            _native_error_number = error_code;
+        }
+
+        public static void ThrowNativeException(int error_code, string stack_trace)
+        {
+            NativeException ex = new(error_code, Base.GetSystemErrorText(error_code));
+            ex._stack_trace = stack_trace;
+            throw ex;
+        }
+    }
+
     public abstract class Enumeration : IComparable
     {
         public uint Id { get; set; }

@@ -127,7 +127,7 @@ namespace Windows.Utilities
 
             SystemSafeHandle process_handle = NativeFunctions.OpenProcess(desired_access, false, process_id);
             if (process_handle.IsInvalid)
-                throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
             return process_handle;
         }
@@ -136,6 +136,7 @@ namespace Windows.Utilities
 
     public class ProcessAndThread : IDisposable
     {
+        #region Enumerations
         /// <summary>
         /// Retrieves a pseudo handle for the current process.
         /// 
@@ -217,6 +218,7 @@ namespace Windows.Utilities
             JOB_OBJECT_IMPERSONATE = 0x0020,
             JOB_OBJECT_ALL_ACCESS = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_REQUIRED | AccessControl.ACCESS_TYPE.SYNCHRONIZE | 0x3F
         }
+        #endregion
 
         private static readonly Dictionary<uint, string[]> _process_added_privilege_list = new();
         
@@ -229,7 +231,7 @@ namespace Windows.Utilities
             SystemSafeHandle h_process = ProcessAndThreadManager.GetProcessTokenSafeHandle(process_id, PROCESS_SECURITY.PROCESS_TERMINATE);
 
             if (!NativeFunctions.TerminateProcess(h_process, exit_code))
-                throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
         }
 
         public void TerminateProcess(uint process_id, string[] added_privileges, uint exit_code = 1)
@@ -258,7 +260,7 @@ namespace Windows.Utilities
             SystemSafeHandle h_process = ProcessAndThreadManager.GetProcessTokenSafeHandle(process_id, PROCESS_SECURITY.PROCESS_TERMINATE);
 
             if (!NativeFunctions.TerminateProcess(h_process, exit_code))
-                throw new SystemException(Base.GetSystemErrorText(Marshal.GetLastWin32Error()));
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
         }
     }
 }
