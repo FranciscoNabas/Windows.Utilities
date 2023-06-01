@@ -7,6 +7,16 @@ using System.Runtime.Serialization;
 namespace Windows.Utilities
 {
     [Serializable()]
+    public class InvalidObjectStateException : Exception
+    {
+        protected InvalidObjectStateException(SerializationInfo info, StreamingContext context) : base(info, context) { }
+
+        public InvalidObjectStateException() : base() { }
+        public InvalidObjectStateException(string message) : base(message) { }
+        public InvalidObjectStateException(string message, Exception innerException) : base(message, innerException) { }
+    }
+
+    [Serializable()]
     public class NativeException : Exception
     {
         private int _native_error_number;
@@ -59,8 +69,10 @@ namespace Windows.Utilities
 
         public static void ThrowNativeException(int error_code, string stack_trace)
         {
-            NativeException ex = new(error_code, Base.GetSystemErrorText(error_code));
-            ex._stack_trace = stack_trace;
+            NativeException ex = new(error_code, Base.GetSystemErrorText(error_code))
+            {
+                _stack_trace = stack_trace
+            };
             throw ex;
         }
     }

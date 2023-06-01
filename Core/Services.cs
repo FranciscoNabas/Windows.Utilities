@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Threading;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace Windows.Utilities
 {
@@ -76,6 +79,64 @@ namespace Windows.Utilities
                           SERVICE_STOP |
                           SERVICE_PAUSE_CONTINUE |
                           SERVICE_USER_DEFINED_CONTROL
+    }
+
+    /// <summary>
+    /// Minimum supported client:
+    /// Minimum supported server:
+    /// Header: winsvc.h (include Windows.h)
+    /// 
+    /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-queryservicestatusex
+    /// </summary>
+    internal enum SC_STATUS_TYPE : uint
+    {
+        SC_STATUS_PROCESS_INFO = 0
+    }
+
+    /// <summary>
+    /// Control codes to send to a service using 'ControlService'.
+    /// Minimum supported client: Windows XP [desktop apps only]
+    /// Minimum supported server: Windows Server 2003 [desktop apps only]
+    /// Header: winsvc.h (include Windows.h)
+    /// 
+    /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-controlservice
+    /// </summary>
+    internal enum SERVICE_CONTROL : uint
+    {
+        SERVICE_CONTROL_STOP = 0x00000001,
+        SERVICE_CONTROL_PAUSE = 0x00000002,
+        SERVICE_CONTROL_CONTINUE = 0x00000003,
+        SERVICE_CONTROL_INTERROGATE = 0x00000004,
+        SERVICE_CONTROL_SHUTDOWN = 0x00000005,
+        SERVICE_CONTROL_PARAMCHANGE = 0x00000006,
+        SERVICE_CONTROL_NETBINDADD = 0x00000007,
+        SERVICE_CONTROL_NETBINDREMOVE = 0x00000008,
+        SERVICE_CONTROL_NETBINDENABLE = 0x00000009,
+        SERVICE_CONTROL_NETBINDDISABLE = 0x0000000A,
+        SERVICE_CONTROL_DEVICEEVENT = 0x0000000B,
+        SERVICE_CONTROL_HARDWAREPROFILECHANGE = 0x0000000C,
+        SERVICE_CONTROL_POWEREVENT = 0x0000000D,
+        SERVICE_CONTROL_SESSIONCHANGE = 0x0000000E,
+        SERVICE_CONTROL_PRESHUTDOWN = 0x0000000F,
+        SERVICE_CONTROL_TIMECHANGE = 0x00000010,
+        SERVICE_CONTROL_TRIGGEREVENT = 0x00000020,
+        SERVICE_CONTROL_LOWRESOURCES = 0x00000060,
+        SERVICE_CONTROL_SYSTEMLOWRESOURCES = 0x00000061
+    }
+
+    /// <summary>
+    /// Service State for Enum Requests (Bit Mask).
+    /// Minimum supported client: Windows XP [desktop apps only]
+    /// Minimum supported server: Windows Server 2003 [desktop apps only]
+    /// Header: winsvc.h (include Windows.h)
+    /// 
+    /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-enumdependentservicesw
+    /// </summary>
+    internal enum SERVICE_ENUM_STATE : uint
+    {
+        SERVICE_ACTIVE = 0x00000001,
+        SERVICE_INACTIVE = 0x00000002,
+        SERVICE_STATE_ALL = SERVICE_ACTIVE | SERVICE_INACTIVE
     }
 
     /// <summary>
@@ -164,6 +225,30 @@ namespace Windows.Utilities
     }
 
     /// <summary>
+    /// Contains status information for a service. The ControlService, EnumDependentServices, EnumServicesStatus, and QueryServiceStatus functions use this structure.
+    /// 
+    /// Minimum supported client: Windows XP [desktop apps only]
+    /// Minimum supported server: Windows Server 2003 [desktop apps only]
+    /// Header: winsvc.h (include Windows.h)
+    /// 
+    /// P/Invoke:
+    /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/ns-winsvc-service_status_process
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct SERVICE_STATUS_PROCESS
+    {
+        internal ServiceType dwServiceType;
+        internal ServiceStatus dwCurrentState;
+        internal uint dwControlsAccepted;
+        internal uint dwWin32ExitCode;
+        internal uint dwServiceSpecificExitCode;
+        internal uint dwCheckPoint;
+        internal uint dwWaitHint;
+        internal uint dwProcessId;
+        internal uint dwServiceFlags;
+    }
+
+    /// <summary>
     /// Contains the delayed auto-start setting of an auto-start service.
     /// 
     /// Minimum supported client: Windows XP [desktop apps only]
@@ -177,6 +262,25 @@ namespace Windows.Utilities
     internal struct SERVICE_DELAYED_AUTO_START_INFO
     {
         internal bool fDelayedAutostart;
+    }
+
+    /// <summary>
+    /// Contains the name of a service in a service control manager database and information about that service.
+    /// It is used by the EnumDependentServices and EnumServicesStatus functions.
+    /// 
+    /// Minimum supported client: Windows XP [desktop apps only]
+    /// Minimum supported server: Windows Server 2003 [desktop apps only]
+    /// Header: winsvc.h (include Windows.h)
+    /// 
+    /// P/Invoke:
+    /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/ns-winsvc-enum_service_statusw
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct ENUM_SERVICE_STATUS
+    {
+        internal string lpServiceName;
+        internal string lpDisplayName;
+        internal SERVICE_STATUS ServiceStatus;
     }
     #endregion
 
@@ -196,7 +300,7 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-openscmanagerw
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "OpenSCManagerW")]
-        public static extern SystemSafeHandle OpenSCManager(
+        public static extern ServiceSafeHandle OpenSCManager(
             string lpMachineName,
             string lpDatabaseName,
             SC_MANAGER_SECURITY dwDesiredAccess
@@ -213,8 +317,8 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-openservicew
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "OpenServiceW")]
-        public static extern SystemSafeHandle OpenService(
-            SystemSafeHandle hSCManager,
+        public static extern ServiceSafeHandle OpenService(
+            ServiceSafeHandle hSCManager,
             string lpServiceName,
             SERVICE_SECURITY dwDesiredAccess
         );
@@ -232,7 +336,7 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool QueryServiceObjectSecurity(
-            SystemSafeHandle hService,
+            ServiceSafeHandle hService,
             uint dwSecurityInformation,
             IntPtr lpSecurityDescriptor,
             uint cbBufSize,
@@ -251,7 +355,7 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool SetServiceObjectSecurity(
-            SystemSafeHandle hService,
+            ServiceSafeHandle hService,
             uint dwSecurityInformation,
             IntPtr lpSecurityDescriptor
         );
@@ -268,7 +372,7 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "ChangeServiceConfig2W")]
         internal static extern bool ChangeServiceConfig2(
-            SystemSafeHandle hService,
+            ServiceSafeHandle hService,
             uint dwInfoLevel,
             IntPtr lpInfo
         );
@@ -284,8 +388,8 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-queryserviceconfigw
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "QueryServiceConfigW")]
-        internal static extern bool QueryServiceconfig(
-            SystemSafeHandle hService,
+        internal static extern bool QueryServiceConfig(
+            ServiceSafeHandle hService,
             IntPtr lpServiceConfig,
             uint cbBufferSize,
             out uint pcbBytesNeeded
@@ -302,7 +406,13 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-queryservicestatus
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        internal static extern bool QueryServiceStatus(SystemSafeHandle hService, out SERVICE_STATUS lpServiceStatus);
+        internal static extern bool QueryServiceStatusEx(
+            ServiceSafeHandle hService,
+            SC_STATUS_TYPE InfoLevel,
+            ref SERVICE_STATUS_PROCESS lpBuffer,
+            uint cbBufSize,
+            out uint pcbBytesNeeded
+        );
 
         /// <summary>
         /// Retrieves the optional configuration parameters of the specified service.
@@ -315,8 +425,8 @@ namespace Windows.Utilities
         /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-queryserviceconfig2w
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "QueryServiceConfig2W")]
-        public static extern bool QueryServiceConfig2(
-            SystemSafeHandle hService,
+        internal static extern bool QueryServiceConfig2(
+            ServiceSafeHandle hService,
             uint dwInfoLevel,
             IntPtr buffer,
             uint cbBufSize,
@@ -335,7 +445,7 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "ChangeServiceConfigW")]
         internal static extern bool ChangeServiceConfig(
-            SystemSafeHandle hService, uint dwServiceType, uint dwStartType, uint dwErrorControl,
+            ServiceSafeHandle hService, uint dwServiceType, uint dwStartType, uint dwErrorControl,
             IntPtr lpBinaryPathName, IntPtr lpLoadOrderGroup, IntPtr lpdwTagId, string lpDependencies,
             IntPtr lpServiceStartName, IntPtr lpPassword, IntPtr lpDisplayName
         );
@@ -352,10 +462,73 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "StartServiceW")]
         internal static extern bool StartService(
-            SystemSafeHandle hService,
+            ServiceSafeHandle hService,
             uint dwNumServiceArgs,
             string[] lpServiceArgVectors
         );
+
+        /// <summary>
+        /// Changes the configuration parameters of a service.
+        /// 
+        /// Minimum supported client: Windows XP [desktop apps only]
+        /// Minimum supported server: Windows Server 2003 [desktop apps only]
+        /// Header: winsvc.h (include Windows.h)
+        /// 
+        /// P/Invoke: https://www.pinvoke.net/default.aspx/advapi32.startservice
+        /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-startservicew
+        /// </summary>
+        [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        internal static extern bool ControlService(
+            ServiceSafeHandle hService,
+            SERVICE_CONTROL dwControl,
+            ref SERVICE_STATUS lpServiceStatus
+        );
+
+        /// <summary>
+        /// Changes the configuration parameters of a service.
+        /// 
+        /// Minimum supported client: Windows XP [desktop apps only]
+        /// Minimum supported server: Windows Server 2003 [desktop apps only]
+        /// Header: winsvc.h (include Windows.h)
+        /// 
+        /// P/Invoke: https://www.pinvoke.net/default.aspx/advapi32.startservice
+        /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-startservicew
+        /// </summary>
+        [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "EnumDependentServicesW")]
+        internal static extern bool EnumDependentServices(
+            ServiceSafeHandle hService,
+            SERVICE_ENUM_STATE dwServiceState,
+            IntPtr lpServices,
+            uint cbBufferSize,
+            out uint pcbBytesNeeded,
+            out uint lpServicesReturned
+        );
+
+        /// <summary>
+        /// This function has been superseded by the QueryServiceStatusEx function.
+        /// 
+        /// Minimum supported client: Windows XP [desktop apps only]
+        /// Minimum supported server: Windows Server 2003 [desktop apps only]
+        /// Header: winsvc.h (include Windows.h)
+        /// 
+        /// P/Invoke:
+        /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-queryservicestatus
+        /// </summary>
+        [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        internal static extern bool DeleteService(ServiceSafeHandle hService);
+
+        /// <summary>
+        /// This function has been superseded by the QueryServiceStatusEx function.
+        /// 
+        /// Minimum supported client: Windows XP [desktop apps only]
+        /// Minimum supported server: Windows Server 2003 [desktop apps only]
+        /// Header: winsvc.h (include Windows.h)
+        /// 
+        /// P/Invoke:
+        /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-queryservicestatus
+        /// </summary>
+        [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        internal static extern bool QueryServiceStatus(ServiceSafeHandle hService, out SERVICE_STATUS lpServiceStatus);
 
         /// <summary>
         /// Closes a handle to a service control manager or service object.
@@ -378,26 +551,10 @@ namespace Windows.Utilities
     /// </summary>
     internal sealed class ServiceControlManager : IDisposable
     {
-        internal SystemSafeHandle? ScmHandle
-        {
-            get { return _scm_handle; }
-        }
-        internal List<SC_MANAGER_SECURITY> ScmPrivilegeList
-        {
-            get { return _scm_priv_list; }
-        }
+        private readonly ServiceSafeHandle _scm_handle;
 
-        private enum ServiceHandleType
-        {
-            ServiceControlManager,
-            Service
-        }
-
-        private SystemSafeHandle? _scm_handle;
-        private readonly List<SC_MANAGER_SECURITY> _scm_priv_list;
-        private static ServiceControlManager? _instance;
-
-        private ServiceControlManager() => _scm_priv_list = new();
+        internal ServiceControlManager() => _scm_handle = NativeFunctions.OpenSCManager(".", "ServicesActive", SC_MANAGER_SECURITY.SC_MANAGER_CONNECT);
+        internal ServiceControlManager(SC_MANAGER_SECURITY desired_access) => _scm_handle = NativeFunctions.OpenSCManager(".", "ServicesActive", desired_access);
 
         /// <summary>
         /// Kept to satisfy the IDisposable inheritance.
@@ -414,41 +571,24 @@ namespace Windows.Utilities
         /// <param name="disposing">Dispose of all unmanaged resources.</param>
         private void Dispose(bool disposing)
         {
-            if (_instance is not null)
-            {
-                if (disposing)
-                    _instance.ScmHandle?.Dispose();
-            }
+            if (disposing)
+                _scm_handle?.Dispose();
         }
 
         /// <summary>
         /// Returns a safe handle to a service.
         /// </summary>
         /// <param name="service_name">The service name.</param>
-        /// <returns>Windows.Utilities.SystemSafeHandle</returns>
-        internal static SystemSafeHandle GetServiceSafeHandle(string service_name) =>
-            GetServiceSafeHandleWithSecurity(service_name,
-                new List<SC_MANAGER_SECURITY>() { SC_MANAGER_SECURITY.SC_MANAGER_CONNECT },
-                new List<SERVICE_SECURITY>() { SERVICE_SECURITY.GENERIC_READ });
+        /// <returns>Windows.Utilities.ServiceSafeHandle</returns>
+        internal ServiceSafeHandle GetServiceSafeHandle(string service_name) => GetServiceSafeHandleWithSecurity(service_name, SERVICE_SECURITY.GENERIC_READ);
 
         /// <summary>
         /// Returns a safe handle to a service.
         /// </summary>
         /// <param name="service_name">The service name.</param>
         /// <param name="desired_access">Desired service access.</param>
-        /// <returns>Windows.Utilities.SystemSafeHandle</returns>
-        internal static SystemSafeHandle GetServiceSafeHandle(string service_name, List<SERVICE_SECURITY> desired_access) =>
-            GetServiceSafeHandleWithSecurity(service_name, new List<SC_MANAGER_SECURITY>() { SC_MANAGER_SECURITY.SC_MANAGER_CONNECT }, desired_access);
-
-        /// <summary>
-        /// Returns a safe handle to a service.
-        /// </summary>
-        /// <param name="service_name">The service name.</param>
-        /// <param name="scm_access">Desired service control manager access.</param>
-        /// <param name="svc_access">Desired service access.</param>
-        /// <returns>Windows.Utilities.SystemSafeHandle</returns>
-        internal static SystemSafeHandle GetServiceSafeHandle(string service_name, List<SC_MANAGER_SECURITY> scm_access, List<SERVICE_SECURITY> svc_access) =>
-            GetServiceSafeHandleWithSecurity(service_name, scm_access, svc_access);
+        /// <returns>Windows.Utilities.ServiceSafeHandle</returns>
+        internal ServiceSafeHandle GetServiceSafeHandle(string service_name, SERVICE_SECURITY desired_access) => GetServiceSafeHandleWithSecurity(service_name, desired_access);
 
         /// <summary>
         /// Returns a safe system handle for the given service name.
@@ -458,76 +598,37 @@ namespace Windows.Utilities
         /// <param name="service_name">The service name.</param>
         /// <param name="scm_access">Desired service control manager access.</param>
         /// <param name="svc_access">Desired service access.</param>
-        /// <returns>Windows.Utilities.SystemSafeHandle</returns>
-        private static SystemSafeHandle GetServiceSafeHandleWithSecurity(string service_name, List<SC_MANAGER_SECURITY> scm_access, List<SERVICE_SECURITY> svc_access)
+        /// <returns>Windows.Utilities.ServiceSafeHandle</returns>
+        private ServiceSafeHandle GetServiceSafeHandleWithSecurity(string service_name, SERVICE_SECURITY desired_access)
         {
-            _instance ??= new();
+            if (null == _scm_handle || _scm_handle.IsClosed || _scm_handle.IsInvalid)
+                throw new ArgumentException("Invalid service control manager handle.");
 
-            // bit-wise ORing all itens in the access lists.
-            SC_MANAGER_SECURITY scm_sec = 0;
-            scm_access.ForEach(f => scm_sec |= f);
-
-            SERVICE_SECURITY svc_sec = 0;
-            svc_access.ForEach(f => svc_sec |= f);
-
-            _instance._scm_handle = null == _instance._scm_handle ? _instance.OpenHandleWithCheck(ServiceHandleType.ServiceControlManager, scm_sec, svc_sec, null) :
-                    _instance._scm_handle.IsInvalid || _instance._scm_handle.IsClosed ? _instance.OpenHandleWithCheck(ServiceHandleType.ServiceControlManager, scm_sec, svc_sec, null) : _instance._scm_handle;
-
-            return _instance.OpenHandleWithCheck(ServiceHandleType.Service, scm_sec, svc_sec, service_name);
-        }
-
-        /// <summary>
-        /// This method opens the handle by calling the native functions.
-        /// It's called by the 'OpenHandleWithCheck()' overloads.
-        /// </summary>
-        /// <param name="handle_type">Handle type to be opened. Service or SCM.</param>
-        /// <param name="scm_desired_access">Desired service control manager access.</param>
-        /// <param name="service_desired_access">Desired service access.</param>
-        /// <param name="service_name">The service name.</param>
-        /// <returns>Windows.Utilities.SystemSafeHandle</returns>
-        /// <exception cref="ArgumentNullException">Instance not initialized correctly.</exception>
-        /// <exception cref="ArgumentException">Service control manager handle provided is invalid.</exception>
-        /// <exception cref="NativeException">Native function call failed.</exception>
-        private SystemSafeHandle OpenHandleWithCheck(ServiceHandleType handle_type, SC_MANAGER_SECURITY scm_desired_access, SERVICE_SECURITY service_desired_access, string? service_name)
-        {
-            SystemSafeHandle? safe_handle = null;
-            if (_instance is null)
-                throw new ArgumentNullException();
-
-            switch (handle_type)
-            {
-                case ServiceHandleType.Service:
-                    if (null == service_name)
-                        throw new ArgumentNullException("Service name cannot be null.");
-
-                    if (null == _instance._scm_handle || _instance._scm_handle.IsClosed || _instance._scm_handle.IsInvalid)
-                        throw new ArgumentException("Invalid service control manager handle.");
-
-                    safe_handle = NativeFunctions.OpenService(_instance._scm_handle, service_name, service_desired_access);
-                    if (safe_handle.IsInvalid)
-                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
-                    break;
-                case ServiceHandleType.ServiceControlManager:
-                    safe_handle = NativeFunctions.OpenSCManager(".", "ServicesActive", scm_desired_access);
-                    if (safe_handle.IsInvalid)
-                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
-                    break;
-            }
-
-            if (safe_handle is null)
-                throw new ArgumentNullException("Unable to open handle to service control manager object.");
+            ServiceSafeHandle safe_handle = NativeFunctions.OpenService(_scm_handle, service_name, desired_access);
+            if (safe_handle.IsInvalid)
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
             return safe_handle;
         }
+    }
+
+    public class ServiceDependentInformation
+    {
+        public string Name { get; }
+        public string DisplayName { get; }
+        public ServiceStatus Status { get; }
+
+        internal ServiceDependentInformation(ENUM_SERVICE_STATUS unmanaged_status) =>
+            (Name, DisplayName, Status) =
+                (unmanaged_status.lpServiceName, unmanaged_status.lpDisplayName, unmanaged_status.ServiceStatus.dwCurrentState);
     }
 
     /// <summary>
     /// This is the main API exposed externally.
     /// Design to manage service control manager objects.
     /// </summary>
-    public sealed class Service : IDisposable
+    public sealed class Service
     {
-
         public string Name { get { return _service_name; } }
         public string DisplayName { get { return _display_name; } }
         public string StartAccount { get { return _start_name; } }
@@ -541,67 +642,63 @@ namespace Windows.Utilities
         private readonly string _bin_path;
         private ServiceStatus _status;
         private ServiceStartupType _startup_type;
-        private SystemSafeHandle _h_service;
-        private List<SERVICE_SECURITY> _service_priv_list;
 
         public Service(string service_name)
         {
-            _service_priv_list = new() { SERVICE_SECURITY.GENERIC_READ };
             _service_name = service_name;
-            _h_service = ServiceControlManager.GetServiceSafeHandle(service_name);
             QUERY_SERVICE_CONFIGW svc_config;
 
-            IntPtr buffer = IntPtr.Zero;
-            if (!NativeFunctions.QueryServiceconfig(_h_service, buffer, 0, out uint bytes_needed))
-            {
-                int last_error = Marshal.GetLastWin32Error();
-                if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
-                    NativeException.ThrowNativeException(last_error, Environment.StackTrace);
-            }
+            using ServiceControlManager scm = new();
+            ServiceSafeHandle h_service = scm.GetServiceSafeHandle(service_name);
+
             try
             {
+                IntPtr buffer = IntPtr.Zero;
+                if (!NativeFunctions.QueryServiceConfig(h_service, buffer, 0, out uint bytes_needed))
+                {
+                    int last_error = Marshal.GetLastWin32Error();
+                    if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
+                        NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+                }
+
                 buffer = Marshal.AllocHGlobal((int)bytes_needed);
-                if (!NativeFunctions.QueryServiceconfig(_h_service, buffer, bytes_needed, out bytes_needed))
+                try
+                {
+                    if (!NativeFunctions.QueryServiceConfig(h_service, buffer, bytes_needed, out bytes_needed))
+                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                    svc_config = (QUERY_SERVICE_CONFIGW)Marshal.PtrToStructure(buffer, typeof(QUERY_SERVICE_CONFIGW));
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+
+                switch (svc_config.dwStartType)
+                {
+                    case 0x00000002:
+                        if (IsServiceDelayedStart(ref h_service))
+                            _startup_type = ServiceStartupType.AutomaticDelayedStart;
+                        break;
+
+                    default:
+                        _startup_type = (ServiceStartupType)svc_config.dwStartType;
+                        break;
+                }
+
+                SERVICE_STATUS_PROCESS svc_status = new();
+                if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out bytes_needed))
                     NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
-                svc_config = (QUERY_SERVICE_CONFIGW)Marshal.PtrToStructure(buffer, typeof(QUERY_SERVICE_CONFIGW));
+                _status = svc_status.dwCurrentState;
+                _display_name = svc_config.lpDisplayName;
+                _start_name = svc_config.lpServiceStartName;
+                _bin_path = svc_config.lpBinaryPathName;
             }
             finally
             {
-                Marshal.FreeHGlobal(buffer);
+                h_service.Dispose();
             }
-
-            switch (svc_config.dwStartType)
-            {
-                case 0x00000002:
-                    if (IsServiceDelayedStart())
-                        _startup_type = ServiceStartupType.AutomaticDelayedStart;
-                    break;
-                
-                default:
-                    _startup_type = (ServiceStartupType)svc_config.dwStartType;
-                    break;
-            }
-
-            if (!NativeFunctions.QueryServiceStatus(_h_service, out SERVICE_STATUS status))
-                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
-
-            _status = status.dwCurrentState;
-            _display_name = svc_config.lpDisplayName;
-            _start_name = svc_config.lpServiceStartName;
-            _bin_path = svc_config.lpBinaryPathName;
-        }
-
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        private void Dispose(bool disposing)
-        {
-            if (disposing)
-                _h_service.Dispose();
         }
 
         /// <summary>
@@ -612,12 +709,14 @@ namespace Windows.Utilities
         /// <param name="service_depended_on">The service name to include in the dependency list.</param>
         /// <exception cref="ArgumentException">Service dependency cannot be null or empty.</exception>
         /// <exception cref="NativeException">Native function call failed.</exception>
-        public void SetServiceDependency(string service_name, string service_depended_on)
+        public void SetDependency(string service_depended_on)
         {
             if (string.IsNullOrEmpty(service_depended_on))
                 throw new ArgumentException("The service dependency cannot be null or empty.");
 
-            SystemSafeHandle h_service = ServiceControlManager.GetServiceSafeHandle(service_name);
+            using ServiceControlManager scm = new();
+            using ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.SERVICE_CHANGE_CONFIG);
+
             if (!NativeFunctions.ChangeServiceConfig(h_service, NativeFunctions.SERVICE_NO_CHANGE, NativeFunctions.SERVICE_NO_CHANGE, NativeFunctions.SERVICE_NO_CHANGE, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, service_depended_on, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero))
                 NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
         }
@@ -629,14 +728,14 @@ namespace Windows.Utilities
         /// <param name="service_name">The service name.</param>
         /// <returns>System.Bool</returns>
         /// <exception cref="NativeException">Native function call failed.</exception>
-        internal bool IsServiceDelayedStart()
+        internal bool IsServiceDelayedStart(ref ServiceSafeHandle h_service)
         {
             bool is_delayed_start = false;
             IntPtr buffer = IntPtr.Zero;
             try
             {
                 // Getting buffer size.
-                if (!NativeFunctions.QueryServiceConfig2(_h_service, 3, IntPtr.Zero, 0, out uint bytes_needed))
+                if (!NativeFunctions.QueryServiceConfig2(h_service, 3, IntPtr.Zero, 0, out uint bytes_needed))
                 {
                     int last_error = Marshal.GetLastWin32Error();
                     if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
@@ -645,7 +744,7 @@ namespace Windows.Utilities
 
                 buffer = Marshal.AllocHGlobal((int)bytes_needed);
 
-                if (!NativeFunctions.QueryServiceConfig2(_h_service, 3, buffer, bytes_needed, out bytes_needed)) // 3: SERVICE_CONFIG_DELAYED_AUTO_START_INFO.
+                if (!NativeFunctions.QueryServiceConfig2(h_service, 3, buffer, bytes_needed, out bytes_needed)) // 3: SERVICE_CONFIG_DELAYED_AUTO_START_INFO.
                     NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
                 SERVICE_DELAYED_AUTO_START_INFO svc_del_auto_start_info = (SERVICE_DELAYED_AUTO_START_INFO)Marshal.PtrToStructure(buffer, typeof(SERVICE_DELAYED_AUTO_START_INFO));
@@ -663,65 +762,392 @@ namespace Windows.Utilities
         /// <param name="startup_type">The startup type desired.</param>
         /// <exception cref="ArgumentException">Invalid service start type.</exception>
         /// <exception cref="NativeException">Native function call failed.</exception>
-        public void SetServiceStartType(string service_name, ServiceStartupType startup_type)
+        public void SetStartupType(ServiceStartupType startup_type)
         {
             bool set_auto_delayed = false;
             uint op_code;
+            IntPtr buffer = IntPtr.Zero;
 
-            SystemSafeHandle h_service = ServiceControlManager.GetServiceSafeHandle(service_name);
+            using ServiceControlManager scm = new();
+            ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.SERVICE_QUERY_CONFIG | SERVICE_SECURITY.SERVICE_CHANGE_CONFIG);
 
-            switch (startup_type)
+            try
             {
-                case ServiceStartupType.Automatic:
-                    op_code = 0x00000002;
-                    break;
-                case ServiceStartupType.AutomaticDelayedStart:
-                    op_code = 0x00000002;
-                    set_auto_delayed = true;
-                    break;
-                case ServiceStartupType.Manual:
-                    op_code = 0x00000003;
-                    break;
-                case ServiceStartupType.Disabled:
-                    op_code = 0x00000004;
-                    break;
-                default:
-                    throw new ArgumentException(string.Format("Invalid start type '{0}'", startup_type.ToString()));
-            }
-
-            if (!NativeFunctions.ChangeServiceConfig(h_service, NativeFunctions.SERVICE_NO_CHANGE, op_code, NativeFunctions.SERVICE_NO_CHANGE, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, string.Empty, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero))
-                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
-
-            if (set_auto_delayed)
-            {
-                SERVICE_DELAYED_AUTO_START_INFO svc_del_auto_start_info = new()
+                switch (startup_type)
                 {
-                    fDelayedAutostart = true
-                };
-                IntPtr buffer = IntPtr.Zero;
+                    case ServiceStartupType.Automatic:
+                        op_code = 0x00000002;
+                        break;
+                    case ServiceStartupType.AutomaticDelayedStart:
+                        op_code = 0x00000002;
+                        set_auto_delayed = true;
+                        break;
+                    case ServiceStartupType.Manual:
+                        op_code = 0x00000003;
+                        break;
+                    case ServiceStartupType.Disabled:
+                        op_code = 0x00000004;
+                        break;
+                    default:
+                        throw new ArgumentException(string.Format("Invalid start type '{0}'", startup_type.ToString()));
+                }
+
+                if (!NativeFunctions.ChangeServiceConfig(h_service, NativeFunctions.SERVICE_NO_CHANGE, op_code, NativeFunctions.SERVICE_NO_CHANGE, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, string.Empty, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                if (set_auto_delayed)
+                {
+                    SERVICE_DELAYED_AUTO_START_INFO svc_del_auto_start_info = new()
+                    {
+                        fDelayedAutostart = true
+                    };
+                    buffer = IntPtr.Zero;
+                    try
+                    {
+                        buffer = Marshal.AllocHGlobal(Marshal.SizeOf(svc_del_auto_start_info));
+                        Marshal.StructureToPtr(svc_del_auto_start_info, buffer, false);
+
+                        if (!NativeFunctions.ChangeServiceConfig2(h_service, 3, buffer)) // 3: SERVICE_CONFIG_DELAYED_AUTO_START_INFO.
+                            NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+                    }
+                    finally { Marshal.FreeHGlobal(buffer); }
+                }
+
+                // Updating service startup type information.
+                QUERY_SERVICE_CONFIGW svc_config;
+                if (!NativeFunctions.QueryServiceConfig(h_service, buffer, 0, out uint bytes_needed))
+                {
+                    int last_error = Marshal.GetLastWin32Error();
+                    if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
+                        NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+                }
+
+                buffer = Marshal.AllocHGlobal((int)bytes_needed);
                 try
                 {
-                    buffer = Marshal.AllocHGlobal(Marshal.SizeOf(svc_del_auto_start_info));
-                    Marshal.StructureToPtr(svc_del_auto_start_info, buffer, false);
-
-                    if (!NativeFunctions.ChangeServiceConfig2(h_service, 3, buffer)) // 3: SERVICE_CONFIG_DELAYED_AUTO_START_INFO.
+                    if (!NativeFunctions.QueryServiceConfig(h_service, buffer, bytes_needed, out bytes_needed))
                         NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                    svc_config = (QUERY_SERVICE_CONFIGW)Marshal.PtrToStructure(buffer, typeof(QUERY_SERVICE_CONFIGW));
                 }
-                finally { Marshal.FreeHGlobal(buffer); }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+
+                if (svc_config.dwStartType == 0x00000002 && IsServiceDelayedStart(ref h_service))
+                    _startup_type = ServiceStartupType.AutomaticDelayedStart;
+                else
+                    _startup_type = (ServiceStartupType)svc_config.dwStartType;
+            }
+            finally
+            {
+                h_service.Dispose();
             }
         }
 
         /// <summary>
-        /// This method starts a service by name.
+        /// This method tries to start this service.
         /// We call it here so we can wrap native exceptions.
+        /// 
+        /// Based on: https://learn.microsoft.com/windows/win32/services/starting-a-service
         /// </summary>
         /// <param name="service_name">The service name.</param>
         /// <exception cref="NativeException">Native function call failed.</exception>
-        public void StartService(string service_name)
+        /// <exception cref="InvalidObjectStateException">Call to 'QueryServiceStatusEx' didn't returned 'ServiceState.Running'.</exception>
+        public void Start(uint wait_stop_timeout = 60, bool wait = true)
         {
-            SystemSafeHandle h_service = ServiceControlManager.GetServiceSafeHandle(service_name, new List<SERVICE_SECURITY>() { SERVICE_SECURITY.SERVICE_START });
+            // Opening the database, and getting a handle to the service.
+            using ServiceControlManager scm = new();
+            using ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.SERVICE_START | SERVICE_SECURITY.SERVICE_QUERY_STATUS);
+
+            // Check the status.
+            SERVICE_STATUS_PROCESS svc_status = new();
+            if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out uint bytes_needed))
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+            if (svc_status.dwCurrentState != ServiceStatus.Stopped && svc_status.dwCurrentState != ServiceStatus.StopPending)
+                return;
+
+            // If the service status is 'StopPending' we wait until it stops.
+            Stopwatch sw = Stopwatch.StartNew();
+            while (svc_status.dwCurrentState == ServiceStatus.StopPending)
+            {
+                // Do not wait longer than the wait hint. A good interval is 
+                // one-tenth of the wait hint but not less than 1 second  
+                // and not more than 10 seconds.
+                uint wait_time = svc_status.dwWaitHint / 10;
+                if (wait_time < 1000)
+                    wait_time = 1000;
+                if (wait_time > 10000)
+                    wait_time = 10000;
+
+                Thread.Sleep((int)wait_time);
+
+                if (sw.Elapsed.TotalSeconds > wait_stop_timeout)
+                    throw new TimeoutException("Timed out waiting for the service to stop.");
+
+                if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out bytes_needed))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+            }
+            sw.Stop();
+
+            // Attempt to start the service.
             if (!NativeFunctions.StartService(h_service, 0, new string[] { }))
                 NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+            if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out bytes_needed))
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+            if (wait)
+            {
+                while (svc_status.dwCurrentState == ServiceStatus.StartPending)
+                {
+                    uint wait_time = svc_status.dwWaitHint / 10;
+                    if (wait_time < 1000)
+                        wait_time = 1000;
+                    if (wait_time > 10000)
+                        wait_time = 10000;
+
+                    if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out bytes_needed))
+                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+                }
+
+                if (svc_status.dwCurrentState != ServiceStatus.Running)
+                    throw new InvalidObjectStateException(string.Format("Unexpected service state '{0}'", svc_status.dwCurrentState.ToString()));
+
+            }
+
+            // Updating service status information.
+            if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out bytes_needed))
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+            _status = svc_status.dwCurrentState;
+        }
+        
+        /// <summary>
+        /// This method attempts to stop the service.
+        /// </summary>
+        /// <param name="wait_stop_timeout"></param>
+        /// <param name="force"></param>
+        /// <param name="wait"></param>
+        /// <exception cref="TimeoutException"></exception>
+        /// <exception cref="InvalidOperationException"></exception>
+        public void Stop(uint wait_stop_timeout = 120, bool force = false, bool wait = true)
+        {
+            using ServiceControlManager scm = new();
+            ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.SERVICE_ENUMERATE_DEPENDENTS | SERVICE_SECURITY.SERVICE_QUERY_STATUS | SERVICE_SECURITY.SERVICE_STOP);
+
+            try
+            {
+                if (!NativeFunctions.QueryServiceStatus(h_service, out SERVICE_STATUS svc_status))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                if (svc_status.dwCurrentState == ServiceStatus.Stopped)
+                    return;
+
+                // Waiting the service to stop if it's already stopping.
+                Stopwatch sw = Stopwatch.StartNew();
+                while (svc_status.dwCurrentState == ServiceStatus.StopPending)
+                {
+                    uint wait_time = svc_status.dwWaitHint / 10;
+                    if (wait_time < 1000)
+                        wait_time = 1000;
+                    if (wait_time > 10000)
+                        wait_time = 10000;
+
+                    Thread.Sleep((int)wait_time);
+
+                    if (sw.Elapsed.TotalSeconds > wait_stop_timeout)
+                        throw new TimeoutException("Timed out waiting for the service to stop.");
+
+                    if (!NativeFunctions.QueryServiceStatus(h_service, out svc_status))
+                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                    if (svc_status.dwCurrentState == ServiceStatus.Stopped)
+                        return;
+                }
+                sw.Stop();
+
+                if (force)
+                    StopDependentServices(ref h_service, wait_stop_timeout);
+                else
+                {
+                    IntPtr buffer = IntPtr.Zero;
+                    if (!NativeFunctions.EnumDependentServices(h_service, SERVICE_ENUM_STATE.SERVICE_ACTIVE, buffer, 0, out uint bytes_needed, out _))
+                    {
+                        int last_error = Marshal.GetLastWin32Error();
+                        if (last_error == NativeFunctions.ERROR_MORE_DATA)
+                            throw new InvalidOperationException("Cannot stop service, it has dependents. To stop the service and dependents use the 'force' parameter.");
+                        else
+                            NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+                    }
+                }
+
+                // Attempting to stop service.
+                if (!NativeFunctions.ControlService(h_service, SERVICE_CONTROL.SERVICE_CONTROL_STOP, ref svc_status))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                if (wait)
+                {
+                    // Waiting the service to stop.
+                    while (svc_status.dwCurrentState != ServiceStatus.Stopped)
+                    {
+                        uint wait_time = svc_status.dwWaitHint / 10;
+                        if (wait_time < 1000)
+                            wait_time = 1000;
+                        if (wait_time > 10000)
+                            wait_time = 10000;
+
+                        Thread.Sleep((int)wait_time);
+
+                        if (!NativeFunctions.QueryServiceStatus(h_service, out svc_status))
+                            NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+                    }
+                }
+
+                // Updating service status information.
+                if (!NativeFunctions.QueryServiceStatus(h_service, out svc_status))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                _status = svc_status.dwCurrentState;
+            }
+            finally
+            {
+                h_service.Dispose();
+            }
+        }
+
+        public void Delete(bool force = false)
+        {
+            if (force)
+                Stop(force: true);
+            
+            else
+            {
+                // If force was not specified, we try to stop the service.
+                // If the service have dependents, we continue and mark it to deletion.
+                // It will be deleted when all handles for the service are closed, and the service is stopped.
+                try
+                {
+                    Stop();
+                }
+                catch (InvalidOperationException) { }
+                catch (Exception ex) { throw ex; }
+            }
+
+            using ServiceControlManager scm = new();
+            using ServiceSafeHandle h_serivce = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.DELETE);
+
+            if (!NativeFunctions.DeleteService(h_serivce))
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+        }
+
+        /// <summary>
+        /// This method returns a list of dependent services.
+        /// </summary>
+        /// <returns></returns>
+        public List<ServiceDependentInformation> GetDependentServices()
+        {
+            List<ServiceDependentInformation> dependent_services = new();
+            IntPtr buffer = IntPtr.Zero;
+
+            using ServiceControlManager scm = new();
+            using ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.SERVICE_ENUMERATE_DEPENDENTS);
+
+            // If the call succeeds with no buffer, the service has no dependents.
+            if (NativeFunctions.EnumDependentServices(h_service, SERVICE_ENUM_STATE.SERVICE_STATE_ALL, buffer, 0, out uint bytes_needed, out uint services_returned))
+                return dependent_services;
+
+            else
+            {
+                int last_error = Marshal.GetLastWin32Error();
+                if (last_error != NativeFunctions.ERROR_MORE_DATA)
+                    NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+
+                buffer = Marshal.AllocHGlobal((int)bytes_needed);
+                try
+                {
+                    if (!NativeFunctions.EnumDependentServices(h_service, SERVICE_ENUM_STATE.SERVICE_STATE_ALL, buffer, bytes_needed, out bytes_needed, out services_returned))
+                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                    int unit_size = Marshal.SizeOf(typeof(ENUM_SERVICE_STATUS));
+                    for (int i = 0; i < services_returned; i++)
+                        dependent_services.Add(new ServiceDependentInformation((ENUM_SERVICE_STATUS)Marshal.PtrToStructure((IntPtr)(buffer.ToInt64() + (unit_size * i)), typeof(ENUM_SERVICE_STATUS))));
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+            }
+
+            return dependent_services;
+        }
+
+        /// <summary>
+        /// This method attempts to stop all dependent services.
+        /// </summary>
+        /// <param name="h_service"></param>
+        /// <param name="wait_stop_timeout"></param>
+        /// <exception cref="TimeoutException"></exception>
+        private void StopDependentServices(ref ServiceSafeHandle h_service, uint wait_stop_timeout)
+        {
+            IntPtr buffer = IntPtr.Zero;
+
+            // If the call succeeds with no buffer, the service has no dependents.
+            if (NativeFunctions.EnumDependentServices(h_service, SERVICE_ENUM_STATE.SERVICE_ACTIVE, buffer, 0, out uint bytes_needed, out _))
+                return;
+
+            else
+            {
+                int last_error = Marshal.GetLastWin32Error();
+                if (last_error != NativeFunctions.ERROR_MORE_DATA)
+                    NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+
+                buffer = Marshal.AllocHGlobal((int)bytes_needed);
+                try
+                {
+                    if (!NativeFunctions.EnumDependentServices(h_service, SERVICE_ENUM_STATE.SERVICE_ACTIVE, buffer, bytes_needed, out bytes_needed, out uint services_returned))
+                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                    int unit_size = Marshal.SizeOf(typeof(ENUM_SERVICE_STATUS));
+                    using ServiceControlManager scm = new();
+                    for (int i = 0; i < services_returned; i++)
+                    {
+                        // You cannot do 'pointer arithmetic' with IntPtr, we cast it to a long.
+                        ENUM_SERVICE_STATUS dep_info = (ENUM_SERVICE_STATUS)Marshal.PtrToStructure((IntPtr)(buffer.ToInt64() + (unit_size * i)), typeof(ENUM_SERVICE_STATUS));
+                        using ServiceSafeHandle h_dep_svc = scm.GetServiceSafeHandle(dep_info.lpServiceName, SERVICE_SECURITY.SERVICE_QUERY_CONFIG | SERVICE_SECURITY.SERVICE_STOP);
+
+                        SERVICE_STATUS dep_stat = new();
+                        if (!NativeFunctions.ControlService(h_dep_svc, SERVICE_CONTROL.SERVICE_CONTROL_STOP, ref dep_stat))
+                            NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                        // Waiting the service to stop.
+                        Stopwatch sw = Stopwatch.StartNew();
+                        while (dep_stat.dwCurrentState != ServiceStatus.Stopped)
+                        {
+                            uint wait_time = dep_stat.dwWaitHint / 10;
+                            if (wait_time < 1000)
+                                wait_time = 1000;
+                            if (wait_time > 10000)
+                                wait_time = 10000;
+
+                            Thread.Sleep((int)wait_time);
+
+                            if (sw.Elapsed.TotalSeconds > wait_stop_timeout)
+                                throw new TimeoutException("Timed out waiting for the service to stop.");
+
+                            if (!NativeFunctions.QueryServiceStatus(h_dep_svc, out dep_stat))
+                                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+                        }
+                    }
+
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+            }
         }
     }
 }

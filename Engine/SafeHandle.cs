@@ -11,26 +11,23 @@ namespace Windows.Utilities
     }
     internal class SystemSafeHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
-        private HandleType handle_type = HandleType.General;
         private SystemSafeHandle() : base(true) { }
-
-        internal void Dispose(HandleType type)
-        {
-            handle_type = type;
-            ReleaseHandle();
-        }
 
         [ReliabilityContract(Consistency.WillNotCorruptState, Cer.MayFail)]
         protected override bool ReleaseHandle()
         {
-            if (!IsInvalid && !IsClosed)
-                return handle_type switch
-                {
-                    HandleType.Service => NativeFunctions.CloseServiceHandle(handle),
-                    _ => NativeFunctions.CloseHandle(handle),
-                };
+            return NativeFunctions.CloseHandle(handle);
+        }
+    }
 
-            return true;
+    internal class ServiceSafeHandle : SafeHandleZeroOrMinusOneIsInvalid
+    {
+        private ServiceSafeHandle() : base(true) { }
+
+        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.MayFail)]
+        protected override bool ReleaseHandle()
+        {
+            return NativeFunctions.CloseServiceHandle(handle);
         }
     }
 }

@@ -9,6 +9,7 @@ namespace Windows.Utilities
     {
         // TODO: Map Win32 errors as resources?
         public static readonly int ERROR_INSUFFICIENT_BUFFER = 122;
+        public static readonly int ERROR_MORE_DATA = 234;
 
         /// <summary>
         /// Formats a message string. The function requires a message definition as input.
