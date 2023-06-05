@@ -26,15 +26,15 @@ namespace Windows.Utilities
         SC_MANAGER_QUERY_LOCK_STATUS = 0x0010,
         SC_MANAGER_MODIFY_BOOT_CONFIG = 0x0020,
         SC_MANAGER_ALL_ACCESS = 0xF003F,
-        GENERIC_READ = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_READ |
+        GENERIC_READ = ACCESS_TYPE.STANDARD_RIGHTS_READ |
                        SC_MANAGER_ENUMERATE_SERVICE |
                        SC_MANAGER_QUERY_LOCK_STATUS,
 
-        GENERIC_WRITE = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_WRITE |
+        GENERIC_WRITE = ACCESS_TYPE.STANDARD_RIGHTS_WRITE |
                         SC_MANAGER_CREATE_SERVICE |
                         SC_MANAGER_MODIFY_BOOT_CONFIG,
 
-        GENERIC_EXECUTE = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_EXECUTE |
+        GENERIC_EXECUTE = ACCESS_TYPE.STANDARD_RIGHTS_EXECUTE |
                           SC_MANAGER_CONNECT |
                           SC_MANAGER_LOCK,
 
@@ -62,19 +62,19 @@ namespace Windows.Utilities
         SERVICE_INTERROGATE = 0x0080,
         SERVICE_USER_DEFINED_CONTROL = 0x0100,
         SERVICE_ALL_ACCESS = 0xF01FF,
-        ACCESS_SYSTEM_SECURITY = AccessControl.ACCESS_TYPE.ACCESS_SYSTEM_SECURITY,
+        ACCESS_SYSTEM_SECURITY = ACCESS_TYPE.ACCESS_SYSTEM_SECURITY,
         DELETE = 0x10000,
         READ_CONTROL = 0x20000,
         WRITE_DAC = 0x40000,
         WRITE_OWNER = 0x80000,
-        GENERIC_READ = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_READ |
+        GENERIC_READ = ACCESS_TYPE.STANDARD_RIGHTS_READ |
                        SERVICE_QUERY_CONFIG |
                        SERVICE_QUERY_STATUS |
                        SERVICE_INTERROGATE |
                        SERVICE_ENUMERATE_DEPENDENTS,
 
-        GENERIC_WRITE = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_WRITE | SERVICE_CHANGE_CONFIG,
-        GENERIC_EXECUTE = AccessControl.ACCESS_TYPE.STANDARD_RIGHTS_EXECUTE |
+        GENERIC_WRITE = ACCESS_TYPE.STANDARD_RIGHTS_WRITE | SERVICE_CHANGE_CONFIG,
+        GENERIC_EXECUTE = ACCESS_TYPE.STANDARD_RIGHTS_EXECUTE |
                           SERVICE_START |
                           SERVICE_STOP |
                           SERVICE_PAUSE_CONTINUE |
@@ -145,12 +145,12 @@ namespace Windows.Utilities
     /// </summary>
     public enum ServiceStartupType : uint
     {
-        Boot = 0x00000000,
-        System = 0x00000001,
-        Automatic = 0x00000002,
-        Manual = 0x00000003,
-        Disabled = 0x00000004,
-        AutomaticDelayedStart = 0x00001000
+        Boot,
+        System,
+        Automatic,
+        Manual,
+        Disabled,
+        AutomaticDelayedStart
     }
 
     /// <summary>
