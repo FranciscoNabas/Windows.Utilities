@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -44,6 +45,34 @@ namespace Windows.Utilities
         /// </summary>
         [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool CloseHandle(IntPtr hObject);
+
+        internal static string[] GetStringArrayFromDoubleNullTermninatedCStyleArray(IntPtr ptr)
+        {
+            List<string> strings = new();
+            while (true)
+            {
+                string current = Marshal.PtrToStringUni(ptr);
+                strings.Add(current);
+
+                // Length + '\0' * 2 (wide char = 2 bytes).
+                int string_bytes = (current.Length + 1) * 2;
+
+                // Checking if it's the end of the array.
+                byte[] bytes = new byte[4];
+                IntPtr no_null_offset = (IntPtr)((long)ptr + (current.Length * 2));
+                bytes[0] = Marshal.ReadByte(no_null_offset, 0);
+                bytes[1] = Marshal.ReadByte(no_null_offset, 1);
+                bytes[2] = Marshal.ReadByte(no_null_offset, 2);
+                bytes[3] = Marshal.ReadByte(no_null_offset, 3);
+
+                if (Encoding.Unicode.GetString(bytes) == "\0\0")
+                    break;
+
+                ptr = (IntPtr)((long)ptr + string_bytes);
+            }
+
+            return strings.ToArray();
+        }
     }
 
     public class Base

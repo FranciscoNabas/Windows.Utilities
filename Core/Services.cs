@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Linq;
 
 namespace Windows.Utilities
 {
@@ -189,7 +191,7 @@ namespace Windows.Utilities
     /// Documentation: https://learn.microsoft.com/windows/win32/api/winsvc/ns-winsvc-query_service_configa
     /// </summary>
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    internal struct QUERY_SERVICE_CONFIGW
+    internal struct QUERY_SERVICE_CONFIG
     {
         internal ServiceType dwServiceType;
         internal uint dwStartType;
@@ -197,7 +199,7 @@ namespace Windows.Utilities
         internal string lpBinaryPathName;
         internal string lpLoadOrderGroup;
         internal uint dwTagId;
-        internal string lpDependencies;
+        internal IntPtr lpDependencies;
         internal string lpServiceStartName;
         internal string lpDisplayName;
     }
@@ -634,45 +636,28 @@ namespace Windows.Utilities
         public string StartAccount { get { return _start_name; } }
         public ServiceStatus Status { get { return _status; } }
         public ServiceStartupType StartupType { get { return _startup_type; } }
+        public string[] Dependencies { get { return _dependencies; } }
         public string BynaryPath { get { return _bin_path; } }
 
         private readonly string _service_name;
         private readonly string _display_name;
         private readonly string _start_name;
         private readonly string _bin_path;
+        private string[] _dependencies;
         private ServiceStatus _status;
         private ServiceStartupType _startup_type;
 
         public Service(string service_name)
         {
             _service_name = service_name;
-            QUERY_SERVICE_CONFIGW svc_config;
+            QUERY_SERVICE_CONFIG svc_config;
 
             using ServiceControlManager scm = new();
             ServiceSafeHandle h_service = scm.GetServiceSafeHandle(service_name);
 
             try
             {
-                IntPtr buffer = IntPtr.Zero;
-                if (!NativeFunctions.QueryServiceConfig(h_service, buffer, 0, out uint bytes_needed))
-                {
-                    int last_error = Marshal.GetLastWin32Error();
-                    if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
-                        NativeException.ThrowNativeException(last_error, Environment.StackTrace);
-                }
-
-                buffer = Marshal.AllocHGlobal((int)bytes_needed);
-                try
-                {
-                    if (!NativeFunctions.QueryServiceConfig(h_service, buffer, bytes_needed, out bytes_needed))
-                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
-
-                    svc_config = (QUERY_SERVICE_CONFIGW)Marshal.PtrToStructure(buffer, typeof(QUERY_SERVICE_CONFIGW));
-                }
-                finally
-                {
-                    Marshal.FreeHGlobal(buffer);
-                }
+                svc_config = QueryServiceConfigInternal(h_service);
 
                 switch (svc_config.dwStartType)
                 {
@@ -687,9 +672,11 @@ namespace Windows.Utilities
                 }
 
                 SERVICE_STATUS_PROCESS svc_status = new();
-                if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out bytes_needed))
+                if (!NativeFunctions.QueryServiceStatusEx(h_service, SC_STATUS_TYPE.SC_STATUS_PROCESS_INFO, ref svc_status, (uint)Marshal.SizeOf(svc_status), out uint bytes_needed))
                     NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
 
+                // _dependencies = svc_config.lpDependencies.Split('\0').Where(x => !string.IsNullOrEmpty(x)).ToArray();
+                _dependencies = NativeFunctions.GetStringArrayFromDoubleNullTermninatedCStyleArray(svc_config.lpDependencies);
                 _status = svc_status.dwCurrentState;
                 _display_name = svc_config.lpDisplayName;
                 _start_name = svc_config.lpServiceStartName;
@@ -709,16 +696,40 @@ namespace Windows.Utilities
         /// <param name="service_depended_on">The service name to include in the dependency list.</param>
         /// <exception cref="ArgumentException">Service dependency cannot be null or empty.</exception>
         /// <exception cref="NativeException">Native function call failed.</exception>
-        public void SetDependency(string service_depended_on)
+        public void SetDependency(string[]? service_depended_on)
         {
-            if (string.IsNullOrEmpty(service_depended_on))
-                throw new ArgumentException("The service dependency cannot be null or empty.");
+            string svc_dependency_string = string.Empty;
+            if (service_depended_on is not null)
+            {
+                // From the 'ChangeServiceConfig' documentation about the parameter 'lpDependencies':
+                // "A pointer to a double null-terminated array of null-separated names of services or load ordering groups
+                // that the system must start before this service can be started."
+
+                StringBuilder c_string_array_buffer = new();
+                foreach (string service_name in service_depended_on)
+                    c_string_array_buffer.Append(service_name + "\0");
+
+                c_string_array_buffer.Append("\0\0");
+
+                svc_dependency_string = c_string_array_buffer.ToString();
+            }
 
             using ServiceControlManager scm = new();
-            using ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.SERVICE_CHANGE_CONFIG);
+            ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.SERVICE_CHANGE_CONFIG | SERVICE_SECURITY.SERVICE_QUERY_CONFIG);
 
-            if (!NativeFunctions.ChangeServiceConfig(h_service, NativeFunctions.SERVICE_NO_CHANGE, NativeFunctions.SERVICE_NO_CHANGE, NativeFunctions.SERVICE_NO_CHANGE, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, service_depended_on, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero))
-                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+            try
+            {
+                if (!NativeFunctions.ChangeServiceConfig(h_service, NativeFunctions.SERVICE_NO_CHANGE, NativeFunctions.SERVICE_NO_CHANGE, NativeFunctions.SERVICE_NO_CHANGE, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, svc_dependency_string, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                QUERY_SERVICE_CONFIG svc_config = QueryServiceConfigInternal(h_service);
+                //_dependencies = svc_config.lpDependencies.Split('\0').Where(x => !string.IsNullOrEmpty(x)).ToArray();
+                _dependencies = NativeFunctions.GetStringArrayFromDoubleNullTermninatedCStyleArray(svc_config.lpDependencies);
+            }
+            finally
+            {
+                h_service.Dispose();
+            }
         }
 
         /// <summary>
@@ -814,26 +825,7 @@ namespace Windows.Utilities
                 }
 
                 // Updating service startup type information.
-                QUERY_SERVICE_CONFIGW svc_config;
-                if (!NativeFunctions.QueryServiceConfig(h_service, buffer, 0, out uint bytes_needed))
-                {
-                    int last_error = Marshal.GetLastWin32Error();
-                    if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
-                        NativeException.ThrowNativeException(last_error, Environment.StackTrace);
-                }
-
-                buffer = Marshal.AllocHGlobal((int)bytes_needed);
-                try
-                {
-                    if (!NativeFunctions.QueryServiceConfig(h_service, buffer, bytes_needed, out bytes_needed))
-                        NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
-
-                    svc_config = (QUERY_SERVICE_CONFIGW)Marshal.PtrToStructure(buffer, typeof(QUERY_SERVICE_CONFIGW));
-                }
-                finally
-                {
-                    Marshal.FreeHGlobal(buffer);
-                }
+                QUERY_SERVICE_CONFIG svc_config = QueryServiceConfigInternal(h_service);
 
                 if (svc_config.dwStartType == 0x00000002 && IsServiceDelayedStart(ref h_service))
                     _startup_type = ServiceStartupType.AutomaticDelayedStart;
@@ -1141,13 +1133,39 @@ namespace Windows.Utilities
                                 NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
                         }
                     }
-
                 }
                 finally
                 {
                     Marshal.FreeHGlobal(buffer);
                 }
             }
+        }
+
+        private QUERY_SERVICE_CONFIG QueryServiceConfigInternal(ServiceSafeHandle h_service)
+        {
+            IntPtr buffer = IntPtr.Zero;
+            QUERY_SERVICE_CONFIG svc_config;
+            if (!NativeFunctions.QueryServiceConfig(h_service, buffer, 0, out uint bytes_needed))
+            {
+                int last_error = Marshal.GetLastWin32Error();
+                if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
+                    NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+            }
+
+            buffer = Marshal.AllocHGlobal((int)bytes_needed);
+            try
+            {
+                if (!NativeFunctions.QueryServiceConfig(h_service, buffer, bytes_needed, out bytes_needed))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                svc_config = (QUERY_SERVICE_CONFIG)Marshal.PtrToStructure(buffer, typeof(QUERY_SERVICE_CONFIG));
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+
+            return svc_config;
         }
     }
 }
