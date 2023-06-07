@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Net;
 using System.Security.Principal;
+using System.Text;
 
 namespace Windows.Utilities
 {
@@ -586,6 +587,9 @@ namespace Windows.Utilities
         internal static readonly string SE_SECURITY_NAME = "SeSecurityPrivilege";
         internal static readonly string SE_DEBUG_NAME = "SeDebugPrivilege";
 
+        // sddl.h
+        internal static readonly uint SDDL_REVISION_1 = 1;
+
         /// <summary>
         /// The OpenProcessToken function opens the access token associated with a process.
         /// 
@@ -708,6 +712,34 @@ namespace Windows.Utilities
             LOGON_TYPE dwLogonType,
             LOGON_PROVIDER dwLogonProvider,
             out SystemSafeHandle phToken
+        );
+
+        [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "ConvertStringSecurityDescriptorToSecurityDescriptorW")]
+        internal static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(
+            string StringSecurityDescriptor,
+            uint StringSDRevision,
+            ref IntPtr SecurityDescriptor,
+            out uint SecurityDescriptorSize
+        );
+
+        [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "ConvertSecurityDescriptorToStringSecurityDescriptorW")]
+        internal static extern bool ConvertSecurityDescriptorToStringSecurityDescriptor(
+            IntPtr pSecurityDescriptor,
+            uint RequestedStringSDRevision,
+            SECURITY_INFORMATION SecurityInformation,
+            out StringBuilder StringSecurityDescriptor,
+            out uint StringSecurityDescriptorLen
+        );
+
+        [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "SetNamedSecurityInfoW")]
+        internal static extern uint SetNamedSecurityInfo(
+            string SetNamedSecurityInfoA,
+            SE_OBJECT_TYPE ObjectType,
+            SECURITY_INFORMATION SecurityInformation,
+            SID psidOwner,
+            SID psidGroup,
+            ACL pDacl,
+            ACL pSacl
         );
 
         /// <summary>

@@ -46,6 +46,9 @@ namespace Windows.Utilities
         [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool CloseHandle(IntPtr hObject);
 
+        [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        internal static extern IntPtr LocalFree(IntPtr hMem);
+
         internal static string[] GetStringArrayFromDoubleNullTermninatedCStyleArray(IntPtr ptr)
         {
             List<string> strings = new();

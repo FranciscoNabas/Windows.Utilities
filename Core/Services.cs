@@ -339,7 +339,7 @@ namespace Windows.Utilities
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool QueryServiceObjectSecurity(
             ServiceSafeHandle hService,
-            uint dwSecurityInformation,
+            SECURITY_INFORMATION dwSecurityInformation,
             IntPtr lpSecurityDescriptor,
             uint cbBufSize,
             out uint pcbBytesNeeded
@@ -358,7 +358,7 @@ namespace Windows.Utilities
         [DllImport("Advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern bool SetServiceObjectSecurity(
             ServiceSafeHandle hService,
-            uint dwSecurityInformation,
+            SECURITY_INFORMATION dwSecurityInformation,
             IntPtr lpSecurityDescriptor
         );
 
@@ -1074,6 +1074,85 @@ namespace Windows.Utilities
             }
 
             return dependent_services;
+        }
+
+        public void SetServiceSddl(string sddl)
+        {
+            using ServiceControlManager scm = new();
+            using ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.READ_CONTROL | SERVICE_SECURITY.WRITE_DAC);
+
+            IntPtr security_descriptor = IntPtr.Zero;
+            if (!NativeFunctions.ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, NativeFunctions.SDDL_REVISION_1, ref security_descriptor, out uint bytes_needed))
+                NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+            try
+            {
+                if (!NativeFunctions.SetServiceObjectSecurity(h_service, SECURITY_INFORMATION.DACL_SECURITY_INFORMATION, security_descriptor))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+            }
+            finally
+            {
+                NativeFunctions.LocalFree(security_descriptor);
+            }
+
+            // Checking
+            if (!NativeFunctions.QueryServiceObjectSecurity(h_service, SECURITY_INFORMATION.DACL_SECURITY_INFORMATION, IntPtr.Zero, 0, out bytes_needed))
+            {
+                int last_error = Marshal.GetLastWin32Error();
+                if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
+                    NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+            }
+
+            security_descriptor = Marshal.AllocHGlobal((int)bytes_needed);
+            try
+            {
+                if (!NativeFunctions.QueryServiceObjectSecurity(h_service, SECURITY_INFORMATION.DACL_SECURITY_INFORMATION, security_descriptor, bytes_needed, out bytes_needed))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                if (!NativeFunctions.ConvertSecurityDescriptorToStringSecurityDescriptor(
+                    security_descriptor, NativeFunctions.SDDL_REVISION_1, SECURITY_INFORMATION.DACL_SECURITY_INFORMATION, out StringBuilder buffer, out bytes_needed))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                if (sddl != buffer.ToString())
+                    throw new InvalidObjectStateException("Failed to set service object security");
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(security_descriptor);
+            }
+        }
+
+        public string GetServiceSddl()
+        {
+            using ServiceControlManager scm = new();
+            using ServiceSafeHandle h_service = scm.GetServiceSafeHandle(_service_name, SERVICE_SECURITY.READ_CONTROL);
+
+            StringBuilder buffer;
+
+            if (!NativeFunctions.QueryServiceObjectSecurity(h_service, SECURITY_INFORMATION.DACL_SECURITY_INFORMATION, IntPtr.Zero, 0, out uint bytes_needed))
+            {
+                int last_error = Marshal.GetLastWin32Error();
+                if (last_error != NativeFunctions.ERROR_INSUFFICIENT_BUFFER)
+                    NativeException.ThrowNativeException(last_error, Environment.StackTrace);
+            }
+
+            IntPtr security_descriptor = Marshal.AllocHGlobal((int)bytes_needed);
+            try
+            {
+                if (!NativeFunctions.QueryServiceObjectSecurity(h_service, SECURITY_INFORMATION.DACL_SECURITY_INFORMATION, security_descriptor, bytes_needed, out bytes_needed))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+                if (!NativeFunctions.ConvertSecurityDescriptorToStringSecurityDescriptor(
+                    security_descriptor, NativeFunctions.SDDL_REVISION_1, SECURITY_INFORMATION.DACL_SECURITY_INFORMATION, out buffer, out bytes_needed))
+                    NativeException.ThrowNativeException(Marshal.GetLastWin32Error(), Environment.StackTrace);
+
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(security_descriptor);
+            }
+
+            return buffer.ToString();
         }
 
         /// <summary>
